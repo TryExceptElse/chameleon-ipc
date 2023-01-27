@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "chameleon-ipc"
+version = "0.0.1"
+description = "A C++ IPC/RPC system where the IDL is annotated C++"
+authors = ["TryExceptElse <schwarzjohnv@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "cipcc"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
