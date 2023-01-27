@@ -33,6 +33,10 @@ class Component {
   virtual void noop();
 
   // @IPC(Method)
+  virtual int mode_names(
+      std::unordered_map<std::string, Mode> mode_map);
+
+  // @IPC(Method)
   virtual int set_mode(Mode mode);
 };
 
