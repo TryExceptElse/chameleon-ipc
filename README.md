@@ -1,7 +1,7 @@
 # Chameleon IPC (cipc)
 
-Chameleon IPC is an IPC implementation which uses annotated C++
-interface headers as its IDL.
+Chameleon IPC is an IPC/RPC system which blends into the surrounding
+code, using annotated C++ interface headers as its IDL.
 
 ## Purpose
 
@@ -38,6 +38,7 @@ This has several advantages over other RPC approaches:
 * @IPC(Serializable)
 * @IPC(Interface)
 * @IPC(Method)
+* @IPC(Callback)
 * @IPC(CallbackRegister)
 * @IPC(CallbackRemove)
 
@@ -218,7 +219,7 @@ HEADER : VALUE
 
 ### cipcc
 
-* parser.py : Parses interface headers to into 
+* parser.py : Parses interface headers into 
   intermediate representation.
 * codegen.py : Produces C++ Endpoint and Proxy objects which
   implement defined interfaces.
