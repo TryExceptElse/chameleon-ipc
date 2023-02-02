@@ -23,6 +23,7 @@
 #ifndef CIPC_UNIX_CHANNEL_H_
 #define CIPC_UNIX_CHANNEL_H_
 
+#include <functional>
 #include <string_view>
 
 #include "cipc/channel.h"
@@ -31,7 +32,11 @@ namespace cipc {
 
 class UnixChannel final : public Channel {
  public:
-  UnixChannel(std::string_view bind_path);
+  static std::unique_ptr<Channel> Connect(std::string_view path);
+  static std::unique_ptr<Channel> Bind(std::string_view path);
+
+  void Accept(std::function<void(const Msg&, Response*)>) final;
+  void Send(void* data, std::size_t size) final;
 };
 
 }  // namespace cipc

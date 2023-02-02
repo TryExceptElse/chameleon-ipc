@@ -23,13 +23,29 @@
 #ifndef CIPC_SERVICE_H_
 #define CIPC_SERVICE_H_
 
+#include <functional>
 #include <string_view>
+
+#include "cipc/channel.h"
 
 namespace cipc {
 
+// Forward declarations.
+class Context;
+class Msg;
+class Response;
+
+class ServiceBase {
+ private:
+
+};
+
+template<class ChannelType = Channel>
 class Service {
  public:
   Service(std::string_view bind_path);
+
+  void Accept(std::function<void(const Msg&, Response*)>);
 };
 
 }  // namespace cipc

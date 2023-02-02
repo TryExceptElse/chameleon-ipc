@@ -20,28 +20,35 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef CIPC_CHANNEL_H_
-#define CIPC_CHANNEL_H_
+#ifndef CIPC_CLIENT_H_
+#define CIPC_CLIENT_H_
 
+#include <functional>
+#include <future>
 #include <memory>
 #include <string_view>
+
+#include "cipc/channel.h"
 
 namespace cipc {
 
 // Forward declarations.
+class Context;
 class Msg;
 class Response;
 
-class Channel {
- public:
-  static std::unique_ptr<Channel> Connect(std::string_view path);
-  static std::unique_ptr<Channel> Bind(std::string_view path);
+class ClientBase {
+ private:
+};
 
-  virtual void Accept(std::function<void(const Msg&, Response*)>);
-  virtual void Send(void* data, std::size_t size);
-  void Send(const Msg& msg);
+template <class ChannelType = Channel>
+class Client : public ClientBase {
+ public:
+  Client(std::string_view bind_path);
+
+  std::future<Msg> Send(const Msg& msg);
 };
 
 }  // namespace cipc
 
-#endif  // CIPC_CHANNEL_H_
+#endif  // CIPC_CLIENT_H_
