@@ -21,10 +21,26 @@
 cmake_minimum_required(VERSION 3.9)
 project(chameleon)
 
-set(CMAKE_CXX_STANDARD 17)
+include(cmake/gtest.cmake)
 
 add_library(
         cipc
         cipc/service.cc
         cipc/unix_channel.cc)
 target_include_directories(cipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(cipc PROPERTIES CXX_STANDARD 17)
+
+# Prepare tests.
+collect_gtest()
+if(TARGET gtest)
+    if(BUILD_TESTS)
+        set(ALL_OPT ALL)
+    endif()
+    add_executable(
+            cipc-test
+            ${ALL_OPT}
+            cipc/msg_test.cc)
+    target_include_directories(cipc-test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(cipc-test PUBLIC gtest gtest_main)
+    set_target_properties(cipc-test PROPERTIES CXX_STANDARD 17)
+endif()
