@@ -23,17 +23,31 @@ project(chameleon)
 
 include(cmake/gtest.cmake)
 
-add_library(
-        cipc
-        cipc/serialize.cc
-        cipc/service.cc
-        cipc/unix_channel.cc)
-target_include_directories(cipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-set_target_properties(cipc PROPERTIES CXX_STANDARD 17)
+if(NOT CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+endif()
+if(NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+endif()
+if(NOT CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+endif()
 
-# Prepare tests.
-collect_gtest()
-if(TARGET gtest)
+option(BUILD_TESTS "Build test targets." OFF)
+
+function(cipc_define_library_target)
+    add_library(
+            cipc
+            cipc/serialize.cc
+            cipc/service.cc
+            cipc/unix_channel.cc)
+    target_include_directories(cipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    set_target_properties(cipc PROPERTIES CXX_STANDARD 17)
+endfunction()
+
+function(cipc_define_test_target)
+    # Prepare tests.
+    create_gtest_target()
     if(BUILD_TESTS)
         set(ALL_OPT ALL)
     endif()
@@ -44,4 +58,7 @@ if(TARGET gtest)
     target_include_directories(cipc-test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(cipc-test PUBLIC cipc gtest gtest_main)
     set_target_properties(cipc-test PROPERTIES CXX_STANDARD 17)
-endif()
+endfunction()
+
+cipc_define_library_target()
+cipc_define_test_target()
