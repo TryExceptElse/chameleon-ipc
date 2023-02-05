@@ -25,6 +25,7 @@ include(cmake/gtest.cmake)
 
 add_library(
         cipc
+        cipc/serialize.cc
         cipc/service.cc
         cipc/unix_channel.cc)
 target_include_directories(cipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -41,6 +42,6 @@ if(TARGET gtest)
             ${ALL_OPT}
             cipc/msg_test.cc)
     target_include_directories(cipc-test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(cipc-test PUBLIC gtest gtest_main)
+    target_link_libraries(cipc-test PUBLIC cipc gtest gtest_main)
     set_target_properties(cipc-test PROPERTIES CXX_STANDARD 17)
 endif()
