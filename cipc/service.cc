@@ -24,8 +24,4 @@
 
 namespace cipc {
 
-Service::Service(std::string_view binding) {
-
-}
-
 }  // namespace cipc
