@@ -20,28 +20,45 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+
 #include "cipc/serialize.h"
+
+#include <cstring>
 
 namespace cipc {
 
-template<>
-std::size_t serialize<std::uint8_t>(
-    const std::uint8_t& x, void* buf, std::size_t buf_size) {
-  if (!buf_size) {
-    return 0;
-  }
-  *static_cast<uint8_t*>(buf) = x;
-  return 1;
-}
+#define INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(TYPE) \
+    template<> \
+    std::size_t serialize<TYPE>( \
+        const TYPE& x, void* buf, std::size_t buf_size) { \
+      if (buf_size < sizeof(TYPE)) { \
+        return 0; \
+      } \
+      const typename std::make_unsigned<TYPE>::type le = host_to_le(x); \
+      memcpy(buf, &le, sizeof(le)); \
+      return sizeof(TYPE); \
+    } \
+    \
+    template<> \
+    std::size_t deserialize<TYPE>( \
+        TYPE* x, const void* buf, std::size_t buf_size) { \
+      if (buf_size < sizeof(TYPE)) { \
+        return 0; \
+      } \
+      typename std::make_unsigned<TYPE>::type le; \
+      memcpy(&le, buf, sizeof(le)); \
+      *x = le_to_host<TYPE>(le); \
+      return sizeof(TYPE); \
+    }
 
-template<>
-std::size_t deserialize<std::uint8_t>(
-    std::uint8_t* x, const void* buf, std::size_t buf_size) {
-  if (!buf_size) {
-    return 0;
-  }
-  *x = *static_cast<const uint8_t*>(buf);
-  return 1;
-}
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint8_t)
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint16_t)
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint32_t)
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint64_t)
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int8_t)
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int16_t)
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int32_t)
+INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int64_t)
 
 }  // namespace cipc

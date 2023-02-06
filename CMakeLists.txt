@@ -54,7 +54,8 @@ function(cipc_define_test_target)
     add_executable(
             cipc-test
             ${ALL_OPT}
-            cipc/msg_test.cc)
+            cipc/msg_test.cc
+            cipc/serialize_test.cc)
     target_include_directories(cipc-test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(cipc-test PUBLIC cipc gtest gtest_main)
     set_target_properties(cipc-test PROPERTIES CXX_STANDARD 17)
