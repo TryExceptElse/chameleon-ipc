@@ -25,8 +25,12 @@
 #include "cipc/serialize.h"
 
 #include <cstring>
+#include <limits>
 
 namespace cipc {
+
+// --------------------------------------------------------------------
+// Integral type serialization.
 
 #define INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(TYPE) \
     template<> \
@@ -61,6 +65,9 @@ INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int16_t)
 INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int32_t)
 INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int64_t)
 
+// --------------------------------------------------------------------
+// Boolean serialization.
+
 static_assert(sizeof(bool) == 1, "Unexpected bool size.");
 
 template<>
@@ -73,5 +80,39 @@ std::size_t deserialize<bool>(bool* x, const void* buf, std::size_t buf_size) {
   return deserialize<std::uint8_t>(
       reinterpret_cast<std::uint8_t*>(x), buf, buf_size);
 }
+
+// --------------------------------------------------------------------
+// Floating point type serialization.
+
+static_assert(
+    std::numeric_limits<float>::is_iec559,
+    "Only IEEE 754 / IEC 559 float types are currently supported.");
+static_assert(
+    std::numeric_limits<double>::is_iec559,
+    "Only IEEE 754 / IEC 559 double float types are currently supported.");
+
+#define FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(TYPE) \
+    template<> \
+    std::size_t serialize<TYPE>( \
+        const TYPE& x, void* buf, std::size_t buf_size) { \
+      if (buf_size < sizeof(TYPE)) { \
+        return 0; \
+      } \
+      memcpy(buf, &x, sizeof(x)); \
+      return sizeof(x); \
+    } \
+    \
+    template<> \
+    std::size_t deserialize<TYPE>( \
+        TYPE* x, const void* buf, std::size_t buf_size) { \
+      if (buf_size < sizeof(TYPE)) { \
+        return 0; \
+      } \
+      memcpy(x, buf, sizeof(TYPE)); \
+      return sizeof(TYPE); \
+    }
+
+FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(float)
+FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(double)
 
 }  // namespace cipc
