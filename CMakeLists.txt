@@ -48,12 +48,12 @@ endfunction()
 function(cipc_define_test_target)
     # Prepare tests.
     create_gtest_target()
-    if(BUILD_TESTS)
-        set(ALL_OPT ALL)
+    if(NOT BUILD_TESTS)
+        set(EXCLUDE_OPT EXCLUDE_FROM_ALL)
     endif()
     add_executable(
             cipc-test
-            ${ALL_OPT}
+            ${EXCLUDE_OPT}
             cipc/msg_test.cc
             cipc/serialize_test.cc)
     target_include_directories(cipc-test PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
