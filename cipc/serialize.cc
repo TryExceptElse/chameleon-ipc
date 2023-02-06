@@ -61,4 +61,17 @@ INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int16_t)
 INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int32_t)
 INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int64_t)
 
+static_assert(sizeof(bool) == 1, "Unexpected bool size.");
+
+template<>
+std::size_t serialize<bool>(const bool& x, void* buf, std::size_t buf_size) {
+  return serialize<std::uint8_t>(x, buf, buf_size);
+}
+   
+template<>
+std::size_t deserialize<bool>(bool* x, const void* buf, std::size_t buf_size) {
+  return deserialize<std::uint8_t>(
+      reinterpret_cast<std::uint8_t*>(x), buf, buf_size);
+}
+
 }  // namespace cipc

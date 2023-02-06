@@ -64,6 +64,9 @@ NUMBER_TESTS(int16_t)
 NUMBER_TESTS(int32_t)
 NUMBER_TESTS(int64_t)
 
+ROUND_TRIP_TEST(True, bool, true)
+ROUND_TRIP_TEST(False, bool, false)
+
 }  // namespace
 
 }  // namespace cipc
