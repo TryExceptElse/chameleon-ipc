@@ -182,7 +182,7 @@ formatted as follows:
 
 HEADER : OBJECT_ID : METHOD_ID : PADDING : ARGUMENTS
 
-* HEADER: 64b (4B): Contains the following bitfields:
+* HEADER: 64b (8B): Contains the following bitfields:
   * Preamble: 8b : 0xC: Helps detect malformed messages, in combination
     with the following 'Message type' field.
   * Message type: 8b. Should be checked before any following fields.
@@ -203,7 +203,7 @@ Return values are formatted more simply:
 
 HEADER : VALUE
 
-* HEADER: 64b (4B): Modified form of the call header.
+* HEADER: 64b (8B): Modified form of the call header.
   Contains the following bitfields:
   * Preamble: 8b : 0xC: Helps detect malformed messages, in combination
     with the following 'Message type' field.
