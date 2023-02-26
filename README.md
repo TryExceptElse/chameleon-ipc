@@ -172,8 +172,8 @@ int main() {
 }
 ```
 
-Note that the client side does not need to include any
-generated headers.
+_Note that the client side does not need to include any
+generated headers._
 
 ### Calling convention
 
