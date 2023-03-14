@@ -35,6 +35,8 @@ endif()
 
 option(BUILD_TESTS "Build test targets." OFF)
 
+find_package(Threads REQUIRED)
+
 function(cipc_define_library_target)
     add_library(
             cipc
@@ -42,6 +44,7 @@ function(cipc_define_library_target)
             cipc/service.cc
             cipc/unix_channel.cc)
     target_include_directories(cipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(cipc Threads::Threads)
     set_target_properties(cipc PROPERTIES CXX_STANDARD 17)
 endfunction()
 

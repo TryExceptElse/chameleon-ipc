@@ -39,7 +39,7 @@ function(create_gtest_target)
     add_library(gtest INTERFACE)
     target_include_directories(
             gtest INTERFACE ${GTEST_SOURCES}/googletest/include)
-    target_link_libraries(gtest INTERFACE ${GTEST_LIB_PATH})
+    target_link_libraries(gtest INTERFACE ${GTEST_LIB_PATH} -pthread)
     add_dependencies(gtest gtest-project)
 
     add_library(gtest_main INTERFACE)
