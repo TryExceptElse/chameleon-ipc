@@ -24,7 +24,7 @@
 #define CIPC_CHANNEL_H_
 
 #include <memory>
-#include <string_view>
+#include <string>
 
 namespace cipc {
 
@@ -34,8 +34,8 @@ class Response;
 
 class Channel {
  public:
-  static std::unique_ptr<Channel> Connect(std::string_view path);
-  static std::unique_ptr<Channel> Bind(std::string_view path);
+  static std::unique_ptr<Channel> Connect(std::string path);
+  static std::unique_ptr<Channel> Bind(std::string path);
 
   virtual void Accept(std::function<void(const Msg&, Response*)>);
   virtual void Send(void* data, std::size_t size);
