@@ -33,26 +33,28 @@ namespace cipc {
  *
  * @note this Type is intended for internal use, and is not likely to
  * be useful to end users.
- * 
+ *
  * The following fields are present, although they may have different
  * meaning or be disallowed in response messages:
- * 
+ *
  * Request:
- * * HEADER: 64b (4B): Contains the following bitfields:
- * * Preamble: 8b : 0xC: Helps detect malformed messages, in combination
- *  with the following 'Message type' field.
- * * Message type: 8b. Should be checked before any following fields.
- *   * 1 for 'call' messages.
- * * Call ID: 16b (2B): Identifier for this method call. Allows return
- *   value to be paired with original method call.
- * * Extended method ID length: 2b: Indicates whether 0-3 extra 4B field
- *   ID words (4B) are present.
- * * N-Args: 6b: Number of passed arguments (0-63).
- * * Method ID: 24b (3B): First 3 method ID bytes.
- * * OBJECT_ID: 64b (8B) Identifier of object being called.
- * * 0 (null) Indicates that the service object is being called.
- * * METHOD_ID: 0-128b (0-16B): Unique identifier for method being invoked.
- * This is unique to the specific overloaded method implementation.
+ * * HEADER: 64b (8B): Contains the following bitfields:
+ *   * Preamble: 8b : 0xC: Helps detect malformed messages, in
+ *     combination with the following 'Message type' field.
+ *   * Message type: 8b. Should be checked before any following fields.
+ *     1 for 'call' messages.
+ *   * Call ID: 16b (2B): Identifier for this method call. Allows return
+ *     value to be paired with original method call.
+ *   * Extended method ID length: 2b: Indicates whether 0-3 extra 4B
+ *     method ID words (4B) are present.
+ *   * Method ID: 24b (3B): First 3 method ID bytes.
+ *   * OBJECT_ID: 64b (8B) Identifier of object being called.
+ *     * 0 (null) Indicates that the service object is being called.
+ * * METHOD_ID: 0-128b (0-16B): Unique identifier for method being
+ *   invoked. This is unique to the specific overloaded
+ *   method implementation.
+ * * Args: Variable size. Determined by argument types associated with
+ *   the method ID.
  * Number of words is indicated
  */
 class Msg {
