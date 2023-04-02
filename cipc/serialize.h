@@ -148,7 +148,7 @@ T le_to_host(typename std::make_unsigned<T>::type x) {
   \
   template<> \
   std::size_t deserialize<TYPE>(TYPE* x, const void* buf, std::size_t buf_size);
-  
+
 // Number types
 
 CIPC_SERIALIZATION_SPECIALIZATION(uint8_t)
