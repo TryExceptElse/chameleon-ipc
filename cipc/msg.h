@@ -23,7 +23,9 @@
 #ifndef CIPC_MSG_H_
 #define CIPC_MSG_H_
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 
 namespace cipc {
 
@@ -60,6 +62,7 @@ namespace cipc {
 class Msg {
  public:
   enum class Type { Request = 1, Response = 2 };
+  using CallId = std::uint16_t;
 
   Msg();
   Msg(void* data, std::size_t size);
@@ -71,6 +74,26 @@ class Msg {
   std::size_t size() const;
 };
 
+class MsgBuilder {
+ public:
+  MsgBuilder& set_type(Msg::Type type);
+  MsgBuilder& set_call_id(Msg::CallId id);
+  MsgBuilder& set_method_id(const uint8_t* bytes, std::size_t size);
+  MsgBuilder& set_object_id(std::uint64_t id);
+
+ private:
+  Msg::Type type_;
+  Msg::CallId call_id_;
+  std::uint8_t method_id_len_;
+  std::uint32_t method_id_start_;
+  std::uint64_t object_id_;
+  std::array<uint32_t, 4> extended_method_id_;
+  std::unique_ptr<uint8_t[]> arg_buffer_;
+  std::size_t args_size_;
+  std::size_t args_capacity_;
+};
+
 }  // namespace cipc
 
 #endif  // CIPC_MSG_H_
+
