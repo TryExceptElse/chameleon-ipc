@@ -87,7 +87,8 @@ through the following steps:
 * Ensure the type's members are all directly assignable by
   `cipc::serialize` and `cipc::deserialize`.
 * Ensure the type is default constructable.
-* Add an `// @IPC(Type)` annotation before the `struct` or `class`
+* Add an `// @IPC(Serializable)` annotation before the `struct`
+  or `class`
 
 Alternatively, custom `cipc::serialize()` and `cipc::deserialize()`
 implementations may be provided, accepting the type to be serialized
