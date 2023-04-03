@@ -21,6 +21,10 @@
 """
 Module containing interface Profile.
 """
+import enum
+import dataclasses
+from dataclasses import dataclass
+import typing as ty
 
 
 class Profile:
@@ -28,18 +32,69 @@ class Profile:
     Class storing a collection of parsed interfaces and
     associated information.
     """
+    serializable_types: ty.Dict[str, 'Serializable']
+    interfaces: ty.Dict[str, 'Interface']
+
+    def __init__(self) -> None:
+        self.serializable_types = {}
+        self.interfaces = {}
 
 
+@dataclass
+class Serializable:
+    """
+    Stores information about a serializable type.
+    """
+    class Type(enum.Enum):
+        ENUM = 'enum'
+        STRUCT = 'struct'
+
+    name: str  # Type name, as it appears in C++.
+    type: Type
+
+
+@dataclass
+class SerializableStruct(Serializable):
+    fields: ty.Dict[str, 'Field'] = dataclasses.field(default_factory=dict)
+
+
+class Field(ty.NamedTuple):
+    """
+    Named tuple storing information about a serializable field.
+    """
+    name: str
+    type_name: str
+
+
+@dataclass
 class Interface:
     """
-    Class storing information about a specific Interface which will
-    be implemented.
+    Stores information about an addressable CIPC interface type.
+
+    Interface types are exposed to connections from other applications,
+    and have fixed addresses, by which they are identified to
+    other processes.
+
+    Overloads are considered separate methods for CIPC's purposes.
     """
+    name: str  # Type name, as it appears in C++.
+    methods: ty.Dict[str, 'Method']
+    callbacks: ty.Dict[str, 'Callback']
 
 
+@dataclass
 class Method:
     """
-    Class with information about a specific method.
-
-    Overloads are considered separate methods for cipc's purposes.
+    Stores information about a specific interface method.
     """
+    name: str  # method name, as it appears in C++.
+
+
+@dataclass
+class Callback:
+    """
+    Stores information about a specific interface callback.
+    """
+    name: str
+    register_method: str
+    remove_method: str
