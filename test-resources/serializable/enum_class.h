@@ -1,6 +1,6 @@
 
 // @IPC(Serializable)
-enum Mode {
+enum class Mode {
   Off,
   AvertSideFumbling,
   Encabulate,
