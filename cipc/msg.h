@@ -27,6 +27,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 namespace cipc {
 
@@ -127,4 +128,3 @@ MsgBuilder& MsgBuilder::add_arg(const ArgType& arg) {
 }  // namespace cipc
 
 #endif  // CIPC_MSG_H_
-
