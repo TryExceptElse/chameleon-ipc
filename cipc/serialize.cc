@@ -74,7 +74,7 @@ template<>
 std::size_t serialize<bool>(const bool& x, void* buf, std::size_t buf_size) {
   return serialize<std::uint8_t>(x, buf, buf_size);
 }
-   
+
 template<>
 std::size_t deserialize<bool>(bool* x, const void* buf, std::size_t buf_size) {
   return deserialize<std::uint8_t>(

@@ -55,9 +55,51 @@
 
 namespace cipc {
 
+/**
+ * @brief Serialize type to buffer.
+ *
+ * This function and its specializations are used to serialize arguments
+ * to the message buffer for transport.
+ *
+ * @param x Object to serialize.
+ * @param buf Pointer to start of buffer to serialize to.
+ * @param buf_size Available space in buffer in bytes.
+ * @return Serialized size in bytes, or 0 if there was insufficient space
+ * and the object could not be written.
+ *
+ * @see serialized_size()
+ * @see deserialize()
+ */
 template<typename T>
 std::size_t serialize(const T& x, void* buf, std::size_t buf_size);
 
+/**
+ * @brief Gets expected serialized size of the passed object.
+ *
+ * This function is used to estimate the size required to store the
+ * passed object once it has been serialized.
+ *
+ * If the expected size is unknown, an estimate may be returned, or else
+ * 0, to indicate that no estimate is available.
+ */
+template<typename T>
+std::size_t serialized_size(const T& x) {
+  return sizeof(x);
+}
+
+/**
+ * @brief Deserializes an object from a buffer.
+ *
+ * This function and its specializations are used to deserialize objects
+ * from a received message buffer.
+ *
+ * @param x Pointer to object to update with the deserialized value.
+ * @param buf Pointer to beginning of data to read.
+ * @param buf_size Size of buffer being read in bytes.
+ * @return Number of read bytes.
+ *
+ * @see serialize()
+ */
 template<typename T>
 std::size_t deserialize(T* x, const void* buf, std::size_t buf_size);
 
@@ -148,6 +190,12 @@ T le_to_host(typename std::make_unsigned<T>::type x) {
   \
   template<> \
   std::size_t deserialize<TYPE>(TYPE* x, const void* buf, std::size_t buf_size);
+
+#define CIPC_SIZED_SERIALIZATION_SPECIALIZATION(TYPE) \
+  CIPC_SERIALIZATION_SPECIALIZATION(TYPE) \
+  \
+  template<> \
+  std::size_t serialized_size(const TYPE& x);
 
 // Number types
 
