@@ -24,6 +24,7 @@
 #define CIPC_MSG_H_
 
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 
@@ -81,17 +82,47 @@ class MsgBuilder {
   MsgBuilder& set_method_id(const uint8_t* bytes, std::size_t size);
   MsgBuilder& set_object_id(std::uint64_t id);
 
+  template<typename ArgType>
+  MsgBuilder& add_arg(const ArgType& arg);
+
  private:
   Msg::Type type_;
   Msg::CallId call_id_;
   std::uint8_t method_id_len_;
   std::uint32_t method_id_start_;
   std::uint64_t object_id_;
-  std::array<uint32_t, 4> extended_method_id_;
-  std::unique_ptr<uint8_t[]> arg_buffer_;
+  std::array<std::uint32_t, 4> extended_method_id_;
+  std::unique_ptr<std::uint8_t[]> arg_buffer_;
   std::size_t args_size_;
   std::size_t args_capacity_;
+
+  /**
+   * @brief Ensure unused argument buffer space is available.
+   * @param space Required unused space in bytes.
+   */
+  void EnsureArgSpace(std::size_t space);
+
+  /**
+   * @brief Unused argument buffer space.
+   *
+   * @return Unused space in bytes.
+   */
+  std::size_t args_space() const { return args_capacity_ - args_size_; }
+
+  std::uint8_t* args_end() { return &arg_buffer_[args_size_]; }
 };
+
+// ---------------------------------------------------------------------
+// Template function implementations
+
+template<typename ArgType>
+MsgBuilder& MsgBuilder::add_arg(const ArgType& arg) {
+  const std::size_t required_space = serialized_size(arg);
+  EnsureArgSpace(required_space);
+  const std::size_t written_size = serialize(arg, args_end(), args_space());
+  assert(written_size < args_space());
+  args_size_ += written_size;
+}
 
 }  // namespace cipc
 

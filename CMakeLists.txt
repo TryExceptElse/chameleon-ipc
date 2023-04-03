@@ -40,6 +40,7 @@ find_package(Threads REQUIRED)
 function(cipc_define_library_target)
     add_library(
             cipc
+            cipc/msg.cc
             cipc/serialize.cc
             cipc/service.cc
             cipc/unix_channel.cc)
