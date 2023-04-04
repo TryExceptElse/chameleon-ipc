@@ -433,6 +433,12 @@ def parse_fields(text: str) -> ty.List['Field']:
     :param text: Declaration text (Ex: 'int foo = 1, baz = 2')
     :return: List of fields parsed from declaration.
     """
+    # Split preceding label (Ex: 'public:')
+    match = LABEL_REGEX.match(text)
+    if match:
+        text = text[len(match.group()):]
+
+    # Parse type_name.
     parts = text.split(',')
     match = FIELD_TYPE_NAME_PATTERN.match(parts[0])
     if not match:
@@ -442,6 +448,8 @@ def parse_fields(text: str) -> ty.List['Field']:
             'See the Serializable types docs.'
         )
     type_name = match['type_name']
+
+    # Parse fields.
     parts[0] = parts[0][len(match.group()):]
     fields = []
     for part in parts:
@@ -455,5 +463,6 @@ def parse_fields(text: str) -> ty.List['Field']:
     return fields
 
 
+LABEL_REGEX = re.compile(r'^\s+(?P<label>\w+):\s')
 FIELD_TYPE_NAME_PATTERN = re.compile(r'^\s*(?P<type_name>[\w:<>]+)\s+')
 FIELD_NAME_PATTERN = re.compile(r'^\s*(?P<name>\w+)')
