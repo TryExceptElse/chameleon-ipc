@@ -181,7 +181,7 @@ def code_walk(
     state = CodeState(
         index=0,
         line_no=1,  # Files tend to be shown 1-indexed in most editors.
-        col_no=0,
+        col_no=1,
         source_name=source_name,
         comment_start='',
         escape=False,
