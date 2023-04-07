@@ -21,7 +21,11 @@
 """
 Test module containing Parser tests.
 """
-from ..parser import Parser, Field, parse_fields
+import pytest
+
+from ..parser import (
+    Parser, Field, Annotation, parse_annotations, parse_fields
+)
 from ..interface import Serializable
 from .util import get_resource
 
@@ -86,6 +90,44 @@ class TestParser:
         name_field = foo.fields['name']
         assert name_field.name == 'name'
         assert name_field.type_name == 'std::string'
+
+    def test_class_with_methods(self):
+        header = get_resource('serializable/class_with_methods.h')
+        profile = Parser().parse([header])
+        foo = profile.serializable_types['Foo']
+        assert foo.type == Serializable.Type.STRUCT
+        id_field = foo.fields['id']
+        assert id_field.name == 'id'
+        assert id_field.type_name == 'std::size_t'
+        name_field = foo.fields['name']
+        assert name_field.name == 'name'
+        assert name_field.type_name == 'std::string'
+
+
+class TestAnnotations:
+    def test_simple_annotation(self):
+        expected = Annotation('Serializable', {})
+        assert parse_annotations('  // @IPC(Serializable)') == expected
+
+    def test_annotation_with_kwarg(self):
+        annotation = parse_annotations('  // @IPC(Serializable, auto=False)')
+        expected = Annotation('Serializable', {'auto': False})
+        assert annotation == expected
+
+    def test_annotation_with_implied_boolean_kwarg(self):
+        annotation = parse_annotations('  // @IPC(Serializable, auto)')
+        expected = Annotation('Serializable', {'auto': True})
+        assert annotation == expected
+
+    def test_line_without_annotation(self):
+        assert parse_annotations('  int foo = 1') is None
+
+    def test_empty_line(self):
+        assert parse_annotations('') is None
+
+    def test_invalid_annotation(self):
+        with pytest.raises(ValueError):
+            parse_annotations('// @IPC(Invalid-Annotation)')
 
 
 class TestFieldParse:

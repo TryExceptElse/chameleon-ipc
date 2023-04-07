@@ -21,6 +21,7 @@
 """
 Module containing interface parser.
 """
+import ast
 import contextlib
 import re
 from dataclasses import dataclass
@@ -48,20 +49,19 @@ class ParsingError(RuntimeError):
 
 class InvalidFieldDeclaration(ValueError):
     """
-    Exception produced when _parse_fields() is given an invalid declaration.
+    Exception produced when _parse_fields() is given an
+    invalid declaration.
     """
 
 
-class AnnotationType(enum.Enum):
-    SERIALIZABLE = 'Serializable'
-    INTERFACE = 'Interface'
-    METHOD = 'Method'
-    CALLBACK = 'Callback'
-    CALLBACK_REGISTER = 'CallbackRegister'
-    CALLBACK_REMOVE = 'CallbackRemove'
+class InvalidAnnotation(ValueError):
+    """
+    Exception raised when an annotation with invalid format
+    is encountered.
+    """
 
 
-BRACE_PAIRS = '{}', '[]', '()', '<>'
+BRACE_PAIRS = '{}', '[]', '()'
 BRACE_START_CHARS = [brace_pair[0] for brace_pair in BRACE_PAIRS]
 BRACE_END_CHARS = [brace_pair[1] for brace_pair in BRACE_PAIRS]
 
@@ -283,7 +283,6 @@ class Parser:
     Class handling parsing of interface descriptions from
     annotated headers.
     """
-    ANNOTATION_PATTERN = re.compile(r'@IPC\(([a-zA-Z]+)\)')
 
     def __init__(self):
         pass
@@ -299,13 +298,13 @@ class Parser:
         profile = Profile()
 
         def watch_for_root_annotations(_, state: 'CodeState') -> None:
-            match = self.ANNOTATION_PATTERN.search(state.line)
-            if not match:
+            annotation = parse_annotations(state.line)
+            if not annotation:
                 return
-            annotation = match[1]
-            if annotation == 'Serializable':
-                state.add_observer(SerializableCodeObserver(profile))
-            elif annotation == 'Interface':
+            kwargs = annotation.kwargs
+            if annotation.key == 'Serializable':
+                state.add_observer(SerializableCodeObserver(profile, **kwargs))
+            elif annotation.key == 'Interface':
                 state.add_observer(InterfaceCodeObserver(profile))
 
         for header in headers:
@@ -329,13 +328,14 @@ class SerializableCodeObserver(CodeObserver):
         r'(?P<type>struct|class|enum) +(?:\S+ +)*(?P<name>\w+) *{'
     )
 
-    def __init__(self, profile: Profile) -> None:
+    def __init__(self, profile: Profile, auto: bool = True) -> None:
         """
         Initializes SerializableCodeObserver.
 
         :param profile: Profile to add parsed Serializable to.
         """
         super().__init__(self.__call__, CodeEvent.BRACKET_START)
+        self.auto = auto
         self.name = None
         self.scope_brace_stack = []
         self.profile = profile
@@ -366,27 +366,32 @@ class SerializableCodeObserver(CodeObserver):
                 )
             if self.type == Serializable.Type.STRUCT:
                 self.serializable = SerializableStruct(self.name, self.type)
-                self.field_observer = FieldCodeObserver(self)
+                if self.auto:
+                    self.field_observer = AutoFieldCodeObserver(self)
+                else:
+                    self.field_observer = ExplicitFieldCodeObserver(self)
                 state.add_observer(self.field_observer)
             else:
                 self.serializable = Serializable(self.name, self.type)
             self.profile.serializable_types[self.name] = self.serializable
             self.events = CodeEvent.BRACKET_END
         elif event == CodeEvent.BRACKET_END:
-            if not state.brace_stack[:len(self.scope_brace_stack)] != \
-                    self.scope_brace_stack:
+            if state.brace_stack == self.scope_brace_stack:
                 state.remove_observer(self)
                 if self.field_observer:
                     state.remove_observer(self.field_observer)
 
 
-class FieldCodeObserver(CodeObserver):
+class AutoFieldCodeObserver(CodeObserver):
     """
     Code observer handling field definitions.
 
     This observer runs until the struct it is handling is closed, at
     which point it will be removed by the SerializableCodeObserver which
     added it.
+
+    This field code observer attempts to add all fields to the
+    serialized object.
     """
     def __init__(
             self, serializable_observer: 'SerializableCodeObserver'
@@ -412,6 +417,57 @@ class FieldCodeObserver(CodeObserver):
             raise ParsingError(state, str(declaration_err)) from declaration_err
 
 
+class ExplicitFieldCodeObserver(CodeObserver):
+    """
+    Code observer handling field definitions.
+
+    This observer runs until the struct it is handling is closed, at
+    which point it will be removed by the SerializableCodeObserver which
+    added it.
+
+    Unlike AutoFieldCodeObserver, only manually annotated fields will
+    be added to the serialized object.
+    """
+    def __init__(
+            self, serializable_observer: 'SerializableCodeObserver'
+    ) -> None:
+        super().__init__(
+            self.__call__,
+            events=CodeEvent.LINE_END | CodeEvent.STATEMENT_END
+        )
+        self.serializable_observer = serializable_observer
+        self.field_prefix = None
+
+    def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
+        if state.brace_stack != self.serializable_observer.scope_brace_stack:
+            return
+
+        if event == CodeEvent.LINE_END:
+            annotation = parse_annotations(state.line)
+            if not annotation or annotation.key != 'Field':
+                return
+            self.field_prefix = state.statement
+
+        elif event == CodeEvent.STATEMENT_END and self.field_prefix is not None:
+            assert state.statement.startswith(self.field_prefix)
+            statement = state.statement[len(self.field_prefix):]
+            try:
+                for field in parse_fields(statement):
+                    fields = self.serializable_observer.serializable.fields
+                    if field.name in fields:
+                        raise ParsingError(
+                            state,
+                            f'Field {repr(field.name)} duplicates an earlier '
+                            'field with the same name.'
+                        )
+                    fields[field.name] = field
+            except InvalidFieldDeclaration as declaration_err:
+                raise ParsingError(
+                    state, str(declaration_err)
+                ) from declaration_err
+            self.field_prefix = None
+
+
 class InterfaceCodeObserver(CodeObserver):
     """Handles interface definitions."""
 
@@ -424,6 +480,45 @@ class InterfaceCodeObserver(CodeObserver):
     def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
         if not self.name:
             pass  # TODO
+
+
+ANNOTATION_PATTERN = re.compile(r'@IPC\((.*)\)')
+ANNOTATION_CONTENT = re.compile(
+    r'\s*([a-zA-Z]+)\s*'
+    r'((?:,\s*[a-zA-Z][a-zA-Z0-9]*(?:\s*=\s*?[a-zA-Z0-9]+)?)*)'
+)
+KEY_VALUE_PATTERN = re.compile(
+    r'([a-zA-Z][a-zA-Z0-9]*)(?:\s*=\s*([a-zA-Z0-9]+))?'
+)
+
+
+class Annotation(ty.NamedTuple):
+    key: str
+    kwargs: ty.Dict[str, ty.Any]
+
+
+def parse_annotations(line: str) -> ty.Optional[Annotation]:
+    """
+    Parses IPC annotations on a line into usable values.
+    :param line:
+    :return: Annotation type string, and kwargs.
+    """
+    match = ANNOTATION_PATTERN.search(line)
+    if not match:
+        return None
+    match = ANNOTATION_CONTENT.fullmatch(match[1])
+    if not match:
+        raise InvalidAnnotation(f'Encountered invalid annotation: {repr(line)}')
+    primary_key = match[1]
+    kwarg_string = match[2]
+    kwargs = {}
+    for kwarg_string in kwarg_string.split(','):
+        match = KEY_VALUE_PATTERN.search(kwarg_string)
+        if not match:
+            continue
+        key, value = match.groups()
+        kwargs[key] = ast.literal_eval(value) if value else True
+    return Annotation(primary_key, kwargs)
 
 
 def parse_fields(text: str) -> ty.List['Field']:
