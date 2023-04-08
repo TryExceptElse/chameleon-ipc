@@ -180,40 +180,32 @@ generated headers._
 Messages calling a method (whether regular RPC calls or callbacks) are
 formatted as follows:
 
-HEADER : OBJECT_ID : METHOD_ID : PADDING : ARGUMENTS
+HEADER : METHOD_ID : OBJECT_ID : ARGUMENTS
 
-* HEADER: 64b (8B): Contains the following bitfields:
+* HEADER: 32b (4B): Contains the following bitfields:
   * Preamble: 8b : 0xC: Helps detect malformed messages, in combination
     with the following 'Message type' field.
   * Message type: 8b. Should be checked before any following fields.
     * 1 for 'call' messages.
   * Call ID: 16b (2B): Identifier for this method call. Allows return
     value to be paired with original method call.
-  * Extended method ID length: 2b: Indicates whether 0-3 extra 4B field
-    ID words (4B) are present.
-  * N-Args: 6b: Number of passed arguments (0-63).
-  * Method ID: 24b (3B): First 3 method ID bytes.
+* Method ID: 32b (4B): Method ID
 * OBJECT_ID: 64b (8B) Identifier of object being called.
   * 0 (null) Indicates that the service object is being called.
-* METHOD_ID: 0-128b (0-16B): Unique identifier for method being invoked.
-  This is unique to the specific overloaded method implementation.
-  Number of words is indicated
+* Args: Size and types determined from method ID.
 
 Return values are formatted more simply:
 
 HEADER : VALUE
 
-* HEADER: 64b (8B): Modified form of the call header.
+* HEADER: 32b (4B): Modified form of the call header.
   Contains the following bitfields:
   * Preamble: 8b : 0xC: Helps detect malformed messages, in combination
     with the following 'Message type' field.
   * Message type: 8b. Should be checked before any following fields.
     * 2 for 'response' messages.
   * Call ID: 16b (2B): Identifier for call being responded to.
-  * Extended method ID length: 2b: Always 0 for responses.
-  * N-Args: 6b: Number of return values (Always 1).
-  * Method ID: 24b (3B): Always 0.
-* VALUE: Return value.
+* VALUE: Return value. Size and type determined from method ID.
 
 ## Project organization
 

@@ -27,7 +27,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <vector>
 
 namespace cipc {
 
@@ -42,88 +42,54 @@ namespace cipc {
  * meaning or be disallowed in response messages:
  *
  * Request:
- * * HEADER: 64b (8B): Contains the following bitfields:
- *   * Preamble: 8b : 0xC: Helps detect malformed messages, in
- *     combination with the following 'Message type' field.
+ * * HEADER: 32b (4B): Contains the following bitfields:
+ *   * Preamble: 8b : 0xC: Helps detect malformed messages, in combination
+ *     with the following 'Message type' field.
  *   * Message type: 8b. Should be checked before any following fields.
- *     1 for 'call' messages.
+ *     * 1 for 'call' messages.
  *   * Call ID: 16b (2B): Identifier for this method call. Allows return
  *     value to be paired with original method call.
- *   * Extended method ID length: 2b: Indicates whether 0-3 extra 4B
- *     method ID words (4B) are present.
- *   * Method ID: 24b (3B): First 3 method ID bytes.
- *   * OBJECT_ID: 64b (8B) Identifier of object being called.
- *     * 0 (null) Indicates that the service object is being called.
- * * METHOD_ID: 0-128b (0-16B): Unique identifier for method being
- *   invoked. This is unique to the specific overloaded
- *   method implementation.
- * * Args: Variable size. Determined by argument types associated with
- *   the method ID.
- * Number of words is indicated
+ * * METHOD_ID: 32b (4B): Method ID
+ * * OBJECT_ID: 64b (8B) Identifier of object being called.
+ *   * 0 (null) Indicates that the service object is being called.
+ * * Args: Size and types determined from method ID.
  */
 class Msg {
  public:
   enum class Type { Request = 1, Response = 2 };
   using CallId = std::uint16_t;
+  using MethodId = std::uint32_t;
+  using ObjectId = std::uint64_t;
+  using Preamble = std::uint8_t;
+  using ArgData = struct { const void* data; std::size_t size; };
 
-  Msg();
-  Msg(void* data, std::size_t size);
+  Msg() = default;
+  Msg(const void* data, std::size_t size);
 
-  Msg& set_type(Type type);
+  static auto BuildRequest(
+      CallId call_id, MethodId method, ObjectId obj, ArgData args) -> Msg;
 
-  void* data();
-  const void* data() const;
-  std::size_t size() const;
-};
+  static auto BuildResponse(CallId call_id, ArgData rv) -> Msg;
 
-class MsgBuilder {
- public:
-  MsgBuilder& set_type(Msg::Type type);
-  MsgBuilder& set_call_id(Msg::CallId id);
-  MsgBuilder& set_method_id(const uint8_t* bytes, std::size_t size);
-  MsgBuilder& set_object_id(std::uint64_t id);
-
-  template<typename ArgType>
-  MsgBuilder& add_arg(const ArgType& arg);
+  auto preamble() const -> Preamble;
+  auto type() const -> Type;
+  auto call_id() const -> CallId;
+  auto method_id() const -> MethodId;
+  auto object_id() const -> ObjectId;
+  auto args_data() const -> ArgData;
+  auto return_value() const -> ArgData;
 
  private:
-  Msg::Type type_;
-  Msg::CallId call_id_;
-  std::uint8_t method_id_len_;
-  std::uint32_t method_id_start_;
-  std::uint64_t object_id_;
-  std::array<std::uint32_t, 4> extended_method_id_;
-  std::unique_ptr<std::uint8_t[]> arg_buffer_;
-  std::size_t args_size_;
-  std::size_t args_capacity_;
+  std::vector<uint8_t> data_;
 
-  /**
-   * @brief Ensure unused argument buffer space is available.
-   * @param space Required unused space in bytes.
-   */
-  void EnsureArgSpace(std::size_t space);
+  void Write(std::size_t offset, const void* data, std::size_t size);
 
-  /**
-   * @brief Unused argument buffer space.
-   *
-   * @return Unused space in bytes.
-   */
-  std::size_t args_space() const { return args_capacity_ - args_size_; }
+  template<typename T>
+  void Write(std::size_t offset, const T& value);
 
-  std::uint8_t* args_end() { return &arg_buffer_[args_size_]; }
+  template<typename T>
+  auto Read(std::size_t offset) const -> T;
 };
-
-// ---------------------------------------------------------------------
-// Template function implementations
-
-template<typename ArgType>
-MsgBuilder& MsgBuilder::add_arg(const ArgType& arg) {
-  const std::size_t required_space = serialized_size(arg);
-  EnsureArgSpace(required_space);
-  const std::size_t written_size = serialize(arg, args_end(), args_space());
-  assert(written_size < args_space());
-  args_size_ += written_size;
-}
 
 }  // namespace cipc
 

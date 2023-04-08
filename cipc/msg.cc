@@ -27,19 +27,101 @@
 
 namespace cipc {
 
-void MsgBuilder::EnsureArgSpace(std::size_t space) {
-  if (args_space() >= space) {
-    return;
-  }
-  assert(args_capacity_ > 0);
-  std::size_t new_capacity = args_capacity_;
-  do {
-    new_capacity *= 2;
-  } while (new_capacity - args_size_ < space);
-  auto new_buf = std::unique_ptr<std::uint8_t[]>(new uint8_t[new_capacity]);
-  memcpy(new_buf.get(), arg_buffer_.get(), args_size_);
-  arg_buffer_ = std::move(new_buf);
-  args_capacity_ = new_capacity;
+namespace {
+
+constexpr auto kHeaderSize =
+    sizeof(Msg::Preamble) + sizeof(Msg::Type) + sizeof(Msg::CallId);
+constexpr auto kTypeOffset = sizeof(Msg::Preamble);
+constexpr auto kCallIdOffset = kTypeOffset + sizeof(Msg::Type);
+constexpr auto kMethodIdOffset = kCallIdOffset + sizeof(Msg::CallId);
+constexpr auto kObjectIdOffset = kMethodIdOffset + sizeof(Msg::MethodId);
+constexpr auto kArgsOffset = kObjectIdOffset + sizeof(Msg::ObjectId);
+constexpr auto kRvOffset = kCallIdOffset + sizeof(Msg::CallId);
+constexpr auto kPreamble = 'C';
+
+auto as_bytes(const void* data) -> const std::uint8_t* {
+  return reinterpret_cast<const std::uint8_t*>(data);
+}
+
+}  // namespace
+
+Msg::Msg(const void* data, std::size_t size)
+    : data_(as_bytes(data), as_bytes(data) + size) {}
+
+auto Msg::BuildRequest(
+    CallId call_id, MethodId method, ObjectId obj, ArgData args) -> Msg {
+  Msg msg;
+  msg.data_.resize(
+      kHeaderSize + sizeof(ObjectId) + sizeof(MethodId) + args.size);
+  msg.Write(0, kPreamble);
+  msg.Write(kTypeOffset, Msg::Type::Request);
+  msg.Write(kCallIdOffset, call_id);
+  msg.Write(kMethodIdOffset, method);
+  msg.Write(kObjectIdOffset, obj);
+  msg.Write(kArgsOffset, args.data, args.size);
+  return msg;
+}
+
+auto Msg::BuildResponse(CallId call_id, ArgData rv) -> Msg {
+  Msg msg;
+  msg.data_.resize(kHeaderSize + rv.size);
+  msg.Write(0, kPreamble);
+  msg.Write(kTypeOffset, Msg::Type::Response);
+  msg.Write(kCallIdOffset, call_id);
+  msg.Write(kRvOffset, rv.data, rv.size);
+  return msg;
+}
+
+auto Msg::preamble() const -> Preamble {
+  return Read<Preamble>(0);
+}
+
+auto Msg::type() const -> Type {
+  return Read<Type>(kTypeOffset);
+}
+
+auto Msg::call_id() const -> CallId {
+  return Read<CallId>(kCallIdOffset);
+}
+
+auto Msg::method_id() const -> MethodId {
+  assert(type() == Type::Request);
+  return Read<MethodId>(kMethodIdOffset);
+}
+
+auto Msg::object_id() const -> ObjectId {
+  assert(type() == Type::Request);
+  return Read<MethodId>(kObjectIdOffset);
+}
+
+auto Msg::args_data() const -> ArgData {
+  assert(type() == Type::Request);
+  return {data_.data() + kArgsOffset, data_.size() - kArgsOffset};
+}
+
+auto Msg::return_value() const -> ArgData {
+  assert(type() == Type::Response);
+  return {data_.data() + kRvOffset, data_.size() - kRvOffset};
+}
+
+// Private methods
+
+void Msg::Write(std::size_t offset, const void* data, std::size_t size) {
+  assert(offset + size < data_.size());
+  std::memcpy(&data_[offset], data, size);
+}
+
+template <typename T>
+void Msg::Write(std::size_t offset, const T& value) {
+  Write(offset, &value, sizeof(T));
+}
+
+template <typename T>
+auto Msg::Read(std::size_t offset) const -> T {
+  assert(offset + sizeof(T) < data_.size());
+  T obj;
+  std::memcpy(&obj, data_.data() + offset, sizeof(T));
+  return obj;
 }
 
 }  // namespace cipc
