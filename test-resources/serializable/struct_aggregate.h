@@ -1,6 +1,8 @@
+#include <cstdint>
 
+// @IPC(Serializable)
 struct Foo {
-  int
+  std::int32_t
       a,
       b,
       c;

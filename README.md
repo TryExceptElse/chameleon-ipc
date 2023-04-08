@@ -87,7 +87,8 @@ through the following steps:
 * Ensure the type's members are all directly assignable by
   `cipc::serialize` and `cipc::deserialize`.
 * Ensure the type is default constructable.
-* Add an `// @IPC(Type)` annotation before the `struct` or `class`
+* Add an `// @IPC(Serializable)` annotation before the `struct`
+  or `class`
 
 Alternatively, custom `cipc::serialize()` and `cipc::deserialize()`
 implementations may be provided, accepting the type to be serialized
@@ -96,6 +97,49 @@ as an argument.
 _Note: `cipc::serialize()` and `cipc::deserialize()`
 implementations must retain consistent output in order to avoid
 breaking compatibility between versions._
+
+#### Serializable field annotation
+
+Serializable structs may be declared with `auto=True` as an annotation
+parameter, indicating that the type may be auto-serialized, with all
+fields being serialized and deserialized, or with `auto=False`, with
+fields to be serialized marked with a `// @IPC(Field)` annotation.
+
+__Auto-serialization example:__
+
+```cpp
+// @IPC(Serializable)
+struct Foo {
+  std::size_t id;
+  std::string name;
+};
+```
+
+__Explicit-fields example:__
+
+```cpp
+// @IPC(Serializable, auto=False)
+class Foo {
+ public:
+  Foo() : id(1), name("foo") {}
+
+  Foo(const Foo& other) = default;
+  Foo(Foo&& other) = default;
+
+  Foo& operator=(const Foo& other) = default;
+  Foo& operator=(Foo&& other) = default;
+
+  auto full_name() const -> std::string {
+    return name + std::to_string(id);
+  }
+
+  // @IPC(Field)
+  std::size_t id;
+  // @IPC(Field)
+  std::string name;
+  std::size_t cached_hash;  // Not serialized.
+};
+```
 
 #### Struct serialization format
 
