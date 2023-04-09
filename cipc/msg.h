@@ -67,25 +67,109 @@ class Msg {
 
   static const Preamble kPreamble;
 
+  /**
+   * @brief Create new empty message.
+   */
   Msg() = default;
+
+  /**
+   * @brief Create message with passed data.
+   * @param data Data buffer start.
+   * @param size Size of data buffer.
+   */
   Msg(const void* data, std::size_t size);
 
+  /**
+   * @brief Builds request message with passed arguments.
+   * @tparam Args Types of arguments to serialize into message.
+   * @param call Call ID
+   * @param method Method ID
+   * @param obj Object ID
+   * @param args Arguments to pass with message.
+   * @return Request Msg.
+   */
   template<typename... Args>
   static auto BuildRequest(
       CallId call, MethodId method, ObjectId obj, const Args&... args) -> Msg;
 
+  /**
+   * @brief Builds response message with passed return value.
+   * @tparam Rv Return value type to be serialized into message.
+   * @param call Call ID being responded to.
+   * @param rv Return value.
+   * @return Response Msg.
+   */
   template<typename Rv>
   static auto BuildResponse(CallId call, const Rv& rv) -> Msg;
 
+  /**
+   * @brief Gets preamble code.
+   *
+   * This value should always be equal to Msg::kPreamble in
+   * valid messages.
+   *
+   * @return Preamble value.
+   */
   auto preamble() const -> Preamble;
+
+  /**
+   * @brief Gets message type code.
+   * @return Type code.
+   */
   auto type() const -> Type;
+
+  /**
+   * @brief Gets call ID stored in message.
+   * @return Call ID.
+   */
   auto call_id() const -> CallId;
+
+  /**
+   * @brief Gets method ID stored in message.
+   *
+   * @warning This method is valid to call only on request messages.
+   *
+   * @return method ID.
+   */
   auto method_id() const -> MethodId;
+
+  /**
+   * @brief Gets object ID stored in message.
+   *
+   * @warning This method is valid to call only on request messages.
+   *
+   * @return Object ID.
+   */
   auto object_id() const -> ObjectId;
+
+  /**
+   * @brief Gets argument data buffer description.
+   *
+   * @warning This method is valid to call only on request messages.
+   *
+   * @return Argument buffer info.
+   */
   auto args_data() const -> ArgData;
+
+  /**
+   * @brief Gets return value data buffer description.
+   *
+   * @warning This method is valid to call only on response messages.
+   *
+   * @return Return value buffer info.
+   */
   auto return_value() const -> ArgData;
 
+  /**
+   * @brief Gets message data pointer.
+   * @return Data buffer start.
+   */
   auto data() const -> const uint8_t* { return data_.data(); }
+
+  /**
+   * @brief Gets size of message data buffer.
+   * @return Data buffer size.
+   */
   auto size() const -> std::size_t { return data_.size(); }
 
  private:
