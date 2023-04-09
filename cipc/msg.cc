@@ -30,9 +30,9 @@ namespace cipc {
 namespace {
 
 constexpr auto kHeaderSize =
-    sizeof(Msg::Preamble) + sizeof(Msg::Type) + sizeof(Msg::CallId);
+    sizeof(Msg::Preamble) + 1 + sizeof(Msg::CallId);
 constexpr auto kTypeOffset = sizeof(Msg::Preamble);
-constexpr auto kCallIdOffset = kTypeOffset + sizeof(Msg::Type);
+constexpr auto kCallIdOffset = kTypeOffset + 1;  // Type size.
 constexpr auto kMethodIdOffset = kCallIdOffset + sizeof(Msg::CallId);
 constexpr auto kObjectIdOffset = kMethodIdOffset + sizeof(Msg::MethodId);
 constexpr auto kArgsOffset = kObjectIdOffset + sizeof(Msg::ObjectId);
@@ -45,30 +45,32 @@ auto as_bytes(const void* data) -> const std::uint8_t* {
 
 }  // namespace
 
+const Msg::Preamble Msg::kPreamble = cipc::kPreamble;
+const std::size_t Msg::kArgsOffset = cipc::kArgsOffset;
+const std::size_t Msg::kRvOffset = cipc::kRvOffset;
+
 Msg::Msg(const void* data, std::size_t size)
     : data_(as_bytes(data), as_bytes(data) + size) {}
 
-auto Msg::BuildRequest(
-    CallId call_id, MethodId method, ObjectId obj, ArgData args) -> Msg {
+auto Msg::PrepareRequestPrefix(
+    CallId call, MethodId method, ObjectId obj, std::size_t args_size) -> Msg {
   Msg msg;
   msg.data_.resize(
-      kHeaderSize + sizeof(ObjectId) + sizeof(MethodId) + args.size);
+      kHeaderSize + sizeof(ObjectId) + sizeof(MethodId) + args_size);
   msg.Write(0, kPreamble);
   msg.Write(kTypeOffset, Msg::Type::Request);
-  msg.Write(kCallIdOffset, call_id);
-  msg.Write(kMethodIdOffset, method);
-  msg.Write(kObjectIdOffset, obj);
-  msg.Write(kArgsOffset, args.data, args.size);
+  msg.Write(kCallIdOffset, host_to_le(call));
+  msg.Write(kMethodIdOffset, host_to_le(method));
+  msg.Write(kObjectIdOffset, host_to_le(obj));
   return msg;
 }
 
-auto Msg::BuildResponse(CallId call_id, ArgData rv) -> Msg {
+auto Msg::PrepareResponsePrefix(CallId call, std::size_t rv_size) -> Msg {
   Msg msg;
-  msg.data_.resize(kHeaderSize + rv.size);
+  msg.data_.resize(kHeaderSize + rv_size);
   msg.Write(0, kPreamble);
-  msg.Write(kTypeOffset, Msg::Type::Response);
-  msg.Write(kCallIdOffset, call_id);
-  msg.Write(kRvOffset, rv.data, rv.size);
+  msg.Write(kTypeOffset, host_to_le(Msg::Type::Response));
+  msg.Write(kCallIdOffset, host_to_le(call));
   return msg;
 }
 
@@ -77,7 +79,7 @@ auto Msg::preamble() const -> Preamble {
 }
 
 auto Msg::type() const -> Type {
-  return Read<Type>(kTypeOffset);
+  return Msg::Type(Read<uint8_t>(kTypeOffset));
 }
 
 auto Msg::call_id() const -> CallId {

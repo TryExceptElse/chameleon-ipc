@@ -29,6 +29,8 @@
 #include <cstdint>
 #include <vector>
 
+#include <cipc/serialize.h>
+
 namespace cipc {
 
 /**
@@ -63,13 +65,19 @@ class Msg {
   using Preamble = std::uint8_t;
   using ArgData = struct { const void* data; std::size_t size; };
 
+  static const Preamble kPreamble;
+  static const std::size_t kArgsOffset;
+  static const std::size_t kRvOffset;
+
   Msg() = default;
   Msg(const void* data, std::size_t size);
 
+  template<typename... Args>
   static auto BuildRequest(
-      CallId call_id, MethodId method, ObjectId obj, ArgData args) -> Msg;
+      CallId call, MethodId method, ObjectId obj, const Args&... args) -> Msg;
 
-  static auto BuildResponse(CallId call_id, ArgData rv) -> Msg;
+  template<typename Rv>
+  static auto BuildResponse(CallId call, const Rv& rv) -> Msg;
 
   auto preamble() const -> Preamble;
   auto type() const -> Type;
@@ -79,8 +87,16 @@ class Msg {
   auto args_data() const -> ArgData;
   auto return_value() const -> ArgData;
 
+  auto data() const -> const uint8_t* { return data_.data(); }
+  auto size() const -> std::size_t { return data_.size(); }
+
  private:
   std::vector<uint8_t> data_;
+
+  static auto PrepareRequestPrefix(
+      CallId call, MethodId method, ObjectId obj, std::size_t args_size) -> Msg;
+
+  static auto PrepareResponsePrefix(CallId call, std::size_t rv_size) -> Msg;
 
   void Write(std::size_t offset, const void* data, std::size_t size);
 
@@ -90,6 +106,55 @@ class Msg {
   template<typename T>
   auto Read(std::size_t offset) const -> T;
 };
+
+// Template function implementations
+
+namespace msg_internal {
+
+template<typename T>
+std::size_t serialized_size_of_all(T first) {
+  return serialized_size(first);
+}
+
+template<typename T, typename... Args>
+std::size_t serialized_size_of_all(T first, Args... args) {
+  return serialized_size(first) + serialized_size_of_all(args...);
+}
+
+template<typename T>
+std::size_t SerializeToVec(
+    std::uint8_t* buf, std::size_t buf_size, T first) {
+  return serialize(first, buf, buf_size);
+}
+
+template<typename T, typename... Args>
+std::size_t SerializeToVec(
+    std::uint8_t* buf, std::size_t buf_size, T first, Args... args) {
+  const auto n_bytes_written = SerializeToVec(buf, buf_size, first);
+  return n_bytes_written + SerializeToVec(
+      buf + n_bytes_written, buf_size - n_bytes_written, args...);
+}
+
+}  // namespace msg_internal
+
+template<typename... Args>
+auto Msg::BuildRequest(
+    CallId call, MethodId method, ObjectId obj, const Args&... args) -> Msg {
+  const auto args_size = msg_internal::serialized_size_of_all(args...);
+  auto msg = PrepareRequestPrefix(call, method, obj, args_size);
+  msg_internal::SerializeToVec(
+      msg.data_.data() + kArgsOffset, msg.data_.size() - kArgsOffset, args...);
+  return msg;
+}
+
+template<typename Rv>
+auto Msg::BuildResponse(CallId call, const Rv& rv) -> Msg {
+  const auto rv_size = serialized_size(rv);
+  auto msg = PrepareResponsePrefix(call, rv_size);
+  msg_internal::SerializeToVec(
+      msg.data_.data() + kRvOffset, msg.data_.size() - kRvOffset, rv);
+  return msg;
+}
 
 }  // namespace cipc
 
