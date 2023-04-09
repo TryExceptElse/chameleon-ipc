@@ -66,8 +66,6 @@ class Msg {
   using ArgData = struct { const void* data; std::size_t size; };
 
   static const Preamble kPreamble;
-  static const std::size_t kArgsOffset;
-  static const std::size_t kRvOffset;
 
   Msg() = default;
   Msg(const void* data, std::size_t size);
@@ -92,6 +90,9 @@ class Msg {
 
  private:
   std::vector<uint8_t> data_;
+
+  static const std::size_t kArgsOffset;
+  static const std::size_t kRvOffset;
 
   static auto PrepareRequestPrefix(
       CallId call, MethodId method, ObjectId obj, std::size_t args_size) -> Msg;
