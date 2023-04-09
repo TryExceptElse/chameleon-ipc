@@ -115,4 +115,39 @@ static_assert(
 FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(float)
 FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(double)
 
+// --------------------------------------------------------------------
+// std::string serialization.
+
+using StringSize = std::uint32_t;
+
+template<>
+std::size_t serialize<std::string>(const std::string& x, void* buf, std::size_t buf_size) {
+  const auto size = serialized_size(x);
+  if (size > buf_size) {
+    return 0;
+  }
+  const StringSize len = x.length();
+  const auto len_size = serialize(len, buf, buf_size);
+  buf_size -= len_size;
+  memcpy(reinterpret_cast<char*>(buf) + len_size, x.data(), x.size());
+  return size;
+}
+
+template<>
+std::size_t serialized_size<std::string>(const std::string& x) {
+  return sizeof(StringSize) + x.size();
+}
+
+template<>
+std::size_t deserialize<std::string>(std::string* x, const void* buf, std::size_t buf_size) {
+  StringSize len;
+  const auto len_size = deserialize<StringSize>(&len, buf, buf_size);
+  buf_size -= len_size;
+  const char* start = reinterpret_cast<const char*>(buf) + len_size;
+  *x = std::string(start, start + len);
+  return len_size + x->size();
+}
+
+// --------------------------------------------------------------------
+
 }  // namespace cipc

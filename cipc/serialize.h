@@ -25,6 +25,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <type_traits>
 
 #include "cipc/platform.h"
@@ -210,6 +211,8 @@ CIPC_SERIALIZATION_SPECIALIZATION(int64_t)
 CIPC_SERIALIZATION_SPECIALIZATION(bool)
 CIPC_SERIALIZATION_SPECIALIZATION(float)
 CIPC_SERIALIZATION_SPECIALIZATION(double)
+
+CIPC_SIZED_SERIALIZATION_SPECIALIZATION(std::string)
 
 }  // namespace cipc
 
