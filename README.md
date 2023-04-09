@@ -233,7 +233,7 @@ HEADER : METHOD_ID : OBJECT_ID : ARGUMENTS
     * 1 for 'call' messages.
   * Call ID: 16b (2B): Identifier for this method call. Allows return
     value to be paired with original method call.
-* Method ID: 32b (4B): Method ID
+* METHOD_ID: 32b (4B): Method ID
 * OBJECT_ID: 64b (8B) Identifier of object being called.
   * 0 (null) Indicates that the service object is being called.
 * Args: Size and types determined from method ID.
