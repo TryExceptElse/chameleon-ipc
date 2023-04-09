@@ -49,11 +49,22 @@ class CipcSerializeTest : public ::testing::Test {
       EXPECT_EQ(result, x) << "Final value was other than expected."; \
     }
 
+#define SIZE_TEST(NAME_SUFFIX, TYPE, X, EXPECTED) \
+    TEST_F(CipcSerializeTest, TYPE##Size##NAME_SUFFIX) { \
+      const TYPE x = X; \
+      EXPECT_EQ(serialized_size(x), EXPECTED); \
+    }
+
+#define SIMPLE_SIZE_TEST(NAME_SUFFIX, TYPE, X) \
+    SIZE_TEST(NAME_SUFFIX, TYPE, X, sizeof(TYPE));
+
 #define NUMBER_TESTS(TYPE) \
     ROUND_TRIP_TEST(0, TYPE, 0) \
     ROUND_TRIP_TEST(1, TYPE, 1) \
     ROUND_TRIP_TEST(Min, TYPE, std::numeric_limits<TYPE>::min()) \
-    ROUND_TRIP_TEST(Max, TYPE, std::numeric_limits<TYPE>::max())
+    ROUND_TRIP_TEST(Max, TYPE, std::numeric_limits<TYPE>::max()) \
+    SIMPLE_SIZE_TEST(0, TYPE, 0) \
+    SIMPLE_SIZE_TEST(1, TYPE, 1)
 
 NUMBER_TESTS(uint8_t)
 NUMBER_TESTS(uint16_t)
@@ -65,6 +76,8 @@ NUMBER_TESTS(int32_t)
 NUMBER_TESTS(int64_t)
 ROUND_TRIP_TEST(True, bool, true)
 ROUND_TRIP_TEST(False, bool, false)
+SIZE_TEST(True, bool, true, 1)
+SIZE_TEST(False, bool, false, 1)
 NUMBER_TESTS(float)
 NUMBER_TESTS(double)
 
