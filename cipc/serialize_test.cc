@@ -32,19 +32,22 @@ namespace cipc {
 
 namespace {
 
+using namespace std::string_literals;  // NOLINT
+
 class CipcSerializeTest : public ::testing::Test {
  protected:
   std::vector<uint8_t> buf_ = std::vector<uint8_t>(128);
 };
 
-#define ROUND_TRIP_TEST(NAME_SUFFIX, TYPE, X) \
-    TEST_F(CipcSerializeTest, TYPE##RoundTrip##NAME_SUFFIX) { \
-      const TYPE x = X; \
-      EXPECT_EQ(serialize<TYPE>(x, buf_.data(), buf_.size()), sizeof(TYPE)) \
+#define ROUND_TRIP_TEST(NAME_SUFFIX, X) \
+    TEST_F(CipcSerializeTest, RoundTrip##NAME_SUFFIX) { \
+      const auto x = X; \
+      using Type = std::remove_const_t<decltype(x)>; \
+      const auto size = serialized_size(x); \
+      EXPECT_EQ(serialize<Type>(x, buf_.data(), buf_.size()), size) \
           << "serialize() returned unexpected size."; \
-      TYPE result = x == 0 ? std::numeric_limits<TYPE>::max() : 0; \
-      EXPECT_EQ(deserialize<TYPE>( \
-          &result, buf_.data(), buf_.size()), sizeof(TYPE)) \
+      Type result{}; \
+      EXPECT_EQ(deserialize<Type>(&result, buf_.data(), buf_.size()), size) \
           << "deserialize() returned unexpected size."; \
       EXPECT_EQ(result, x) << "Final value was other than expected."; \
     }
@@ -59,10 +62,10 @@ class CipcSerializeTest : public ::testing::Test {
     SIZE_TEST(NAME_SUFFIX, TYPE, X, sizeof(TYPE));
 
 #define NUMBER_TESTS(TYPE) \
-    ROUND_TRIP_TEST(0, TYPE, 0) \
-    ROUND_TRIP_TEST(1, TYPE, 1) \
-    ROUND_TRIP_TEST(Min, TYPE, std::numeric_limits<TYPE>::min()) \
-    ROUND_TRIP_TEST(Max, TYPE, std::numeric_limits<TYPE>::max()) \
+    ROUND_TRIP_TEST(TYPE##0, TYPE{0}) \
+    ROUND_TRIP_TEST(TYPE##1, TYPE{1}) \
+    ROUND_TRIP_TEST(TYPE##Min, std::numeric_limits<TYPE>::min()) \
+    ROUND_TRIP_TEST(TYPE##Max, std::numeric_limits<TYPE>::max()) \
     SIMPLE_SIZE_TEST(0, TYPE, 0) \
     SIMPLE_SIZE_TEST(1, TYPE, 1)
 
@@ -74,12 +77,15 @@ NUMBER_TESTS(int8_t)
 NUMBER_TESTS(int16_t)
 NUMBER_TESTS(int32_t)
 NUMBER_TESTS(int64_t)
-ROUND_TRIP_TEST(True, bool, true)
-ROUND_TRIP_TEST(False, bool, false)
+ROUND_TRIP_TEST(True, true)
+ROUND_TRIP_TEST(False, false)
 SIZE_TEST(True, bool, true, 1)
 SIZE_TEST(False, bool, false, 1)
 NUMBER_TESTS(float)
 NUMBER_TESTS(double)
+ROUND_TRIP_TEST(ShortString, "Short"s)
+ROUND_TRIP_TEST(LongString, "ARatherLongStringThatExceedsSmallBufLen"s)
+ROUND_TRIP_TEST(EmptyString, ""s)
 
 }  // namespace
 
