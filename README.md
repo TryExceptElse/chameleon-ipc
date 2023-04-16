@@ -177,10 +177,10 @@ Interface types must follow several rules:
 
 ### Publisher
 
-A receiver wraps an interface implementation and makes calls to its
+A Publisher wraps an interface implementation and makes calls to its
 methods on behalf of a client-side Proxy.
 
-A Receiver type is generated for each annotated Interface type, and
+A Publisher type is generated for each annotated Interface type, and
 is easily instantiated by the user on the IPC server-side.
 
 ```c++
