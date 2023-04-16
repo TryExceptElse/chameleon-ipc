@@ -201,7 +201,7 @@ int main() {
 ### Proxy
 
 A Proxy implements an Interface type, and relays calls to a remote
-Receiver. Proxy types are Serializable, and are passed over IPC channels
+Publisher. Proxy types are Serializable, and are passed over IPC channels
 in place of interface implementation objects.
 
 ```c++
