@@ -26,93 +26,39 @@
 
 #include <cstring>
 #include <limits>
+#include <list>
+#include <vector>
 
 namespace cipc {
 
 // --------------------------------------------------------------------
-// Integral type serialization.
+// std::string serialization.
 
-#define INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(TYPE) \
-    template<> \
-    std::size_t serialize<TYPE>( \
-        const TYPE& x, void* buf, std::size_t buf_size) { \
-      if (buf_size < sizeof(TYPE)) { \
-        return 0; \
-      } \
-      const typename std::make_unsigned<TYPE>::type le = host_to_le(x); \
-      memcpy(buf, &le, sizeof(le)); \
-      return sizeof(TYPE); \
-    } \
-    \
-    template<> \
-    std::size_t deserialize<TYPE>( \
-        TYPE* x, const void* buf, std::size_t buf_size) { \
-      if (buf_size < sizeof(TYPE)) { \
-        return 0; \
-      } \
-      typename std::make_unsigned<TYPE>::type le; \
-      memcpy(&le, buf, sizeof(le)); \
-      *x = le_to_host<TYPE>(le); \
-      return sizeof(TYPE); \
-    }
+using StringSize = std::uint32_t;
 
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint8_t)
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint16_t)
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint32_t)
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::uint64_t)
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int8_t)
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int16_t)
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int32_t)
-INTEGRAL_TYPE_SERIALIZATION_FUNCTIONS(std::int64_t)
-
-// --------------------------------------------------------------------
-// Boolean serialization.
-
-static_assert(sizeof(bool) == 1, "Unexpected bool size.");
-
-template<>
-std::size_t serialize<bool>(const bool& x, void* buf, std::size_t buf_size) {
-  return serialize<std::uint8_t>(x, buf, buf_size);
+std::size_t serialize(const std::string& x, void* buf, std::size_t buf_size) {
+  const auto size = serialized_size(x);
+  if (size > buf_size) {
+    return 0;
+  }
+  const StringSize len = x.size();
+  const auto len_size = serialize(len, buf, buf_size);
+  buf_size -= len_size;
+  std::memcpy(reinterpret_cast<char*>(buf) + len_size, x.data(), x.size());
+  return size;
 }
 
-template<>
-std::size_t deserialize<bool>(bool* x, const void* buf, std::size_t buf_size) {
-  return deserialize<std::uint8_t>(
-      reinterpret_cast<std::uint8_t*>(x), buf, buf_size);
+std::size_t serialized_size(const std::string& x) {
+  return sizeof(StringSize) + x.size();
 }
 
-// --------------------------------------------------------------------
-// Floating point type serialization.
-
-static_assert(
-    std::numeric_limits<float>::is_iec559,
-    "Only IEEE 754 / IEC 559 float types are currently supported.");
-static_assert(
-    std::numeric_limits<double>::is_iec559,
-    "Only IEEE 754 / IEC 559 double float types are currently supported.");
-
-#define FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(TYPE) \
-    template<> \
-    std::size_t serialize<TYPE>( \
-        const TYPE& x, void* buf, std::size_t buf_size) { \
-      if (buf_size < sizeof(TYPE)) { \
-        return 0; \
-      } \
-      memcpy(buf, &x, sizeof(x)); \
-      return sizeof(x); \
-    } \
-    \
-    template<> \
-    std::size_t deserialize<TYPE>( \
-        TYPE* x, const void* buf, std::size_t buf_size) { \
-      if (buf_size < sizeof(TYPE)) { \
-        return 0; \
-      } \
-      memcpy(x, buf, sizeof(TYPE)); \
-      return sizeof(TYPE); \
-    }
-
-FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(float)
-FLOATING_POINT_TYPE_SERIALIZATION_FUNCTIONS(double)
+std::size_t deserialize(std::string* x, const void* buf, std::size_t buf_size) {
+  StringSize len;
+  const auto len_size = deserialize(&len, buf, buf_size);
+  buf_size -= len_size;
+  const char* start = reinterpret_cast<const char*>(buf) + len_size;
+  *x = std::string(start, start + len);
+  return len_size + x->size();
+}
 
 }  // namespace cipc

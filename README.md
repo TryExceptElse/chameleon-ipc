@@ -66,9 +66,12 @@ Depending on need, use `std::uint8_t` or `std::int8_t`_.
 
 #### Complex types
 
+* __std::deque__
+* __std::list__
+* __std::map__
 * __std::string__
-* __std::vector__
 * __std::unordered_map__
+* __std::vector__
 
 ## Internal object representation
 
