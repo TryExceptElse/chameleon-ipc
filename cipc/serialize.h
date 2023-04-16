@@ -20,13 +20,29 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+/**
+ * @brief Header declaring built-in serialization functions.
+ *
+ * There are three serialization function varieties used by CIPC:
+ * serialized_size(), serialize(), and deserialize(). These functions
+ * respectively return the serialized size of an object in memory,
+ * serialize the object, or deserialize to an object of a given type.
+ * If serialization or deserialization cannot be completed due to
+ * insufficient buffer size, a 0 is returned.
+ */
 #ifndef CIPC_SERIALIZE_H_
 #define CIPC_SERIALIZE_H_
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <deque>
+#include <list>
+#include <map>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
+#include <vector>
 
 #include "cipc/platform.h"
 
@@ -55,54 +71,6 @@
 #endif
 
 namespace cipc {
-
-/**
- * @brief Serialize type to buffer.
- *
- * This function and its specializations are used to serialize arguments
- * to the message buffer for transport.
- *
- * @param x Object to serialize.
- * @param buf Pointer to start of buffer to serialize to.
- * @param buf_size Available space in buffer in bytes.
- * @return Serialized size in bytes, or 0 if there was insufficient space
- * and the object could not be written.
- *
- * @see serialized_size()
- * @see deserialize()
- */
-template<typename T>
-std::size_t serialize(const T& x, void* buf, std::size_t buf_size);
-
-/**
- * @brief Gets expected serialized size of the passed object.
- *
- * This function is used to estimate the size required to store the
- * passed object once it has been serialized.
- *
- * If the expected size is unknown, an estimate may be returned, or else
- * 0, to indicate that no estimate is available.
- */
-template<typename T>
-std::size_t serialized_size(const T& x) {
-  return sizeof(x);
-}
-
-/**
- * @brief Deserializes an object from a buffer.
- *
- * This function and its specializations are used to deserialize objects
- * from a received message buffer.
- *
- * @param x Pointer to object to update with the deserialized value.
- * @param buf Pointer to beginning of data to read.
- * @param buf_size Size of buffer being read in bytes.
- * @return Number of read bytes.
- *
- * @see serialize()
- */
-template<typename T>
-std::size_t deserialize(T* x, const void* buf, std::size_t buf_size);
 
 // Serialization util.
 
@@ -185,34 +153,312 @@ T le_to_host(typename std::make_unsigned<T>::type x) {
 
 // Specializations.
 
-#define CIPC_SERIALIZATION_SPECIALIZATION(TYPE) \
-  template<> \
-  std::size_t serialize<TYPE>(const TYPE& x, void* buf, std::size_t buf_size); \
-  \
-  template<> \
-  std::size_t deserialize<TYPE>(TYPE* x, const void* buf, std::size_t buf_size);
-
-#define CIPC_SIZED_SERIALIZATION_SPECIALIZATION(TYPE) \
-  CIPC_SERIALIZATION_SPECIALIZATION(TYPE) \
-  \
-  template<> \
-  std::size_t serialized_size(const TYPE& x);
+template<typename T>
+using enable_if_integral_serializable = typename std::enable_if<
+    std::is_same<T, std::uint8_t>::value ||
+        std::is_same<T, std::uint16_t>::value ||
+        std::is_same<T, std::uint32_t>::value ||
+        std::is_same<T, std::uint64_t>::value ||
+        std::is_same<T, std::int8_t>::value ||
+        std::is_same<T, std::int16_t>::value ||
+        std::is_same<T, std::int32_t>::value ||
+        std::is_same<T, std::int64_t>::value,
+    bool>;
 
 // Number types
 
-CIPC_SERIALIZATION_SPECIALIZATION(uint8_t)
-CIPC_SERIALIZATION_SPECIALIZATION(uint16_t)
-CIPC_SERIALIZATION_SPECIALIZATION(uint32_t)
-CIPC_SERIALIZATION_SPECIALIZATION(uint64_t)
-CIPC_SERIALIZATION_SPECIALIZATION(int8_t)
-CIPC_SERIALIZATION_SPECIALIZATION(int16_t)
-CIPC_SERIALIZATION_SPECIALIZATION(int32_t)
-CIPC_SERIALIZATION_SPECIALIZATION(int64_t)
-CIPC_SERIALIZATION_SPECIALIZATION(bool)
-CIPC_SERIALIZATION_SPECIALIZATION(float)
-CIPC_SERIALIZATION_SPECIALIZATION(double)
+template<
+    typename T,
+    typename enable_if_integral_serializable<T>::type = true>
+std::size_t serialize(const T& x, void* buf, std::size_t buf_size) {
+  if (buf_size < sizeof(T)) {
+    return 0;
+  }
+  const typename std::make_unsigned<T>::type le = host_to_le(x);
+  std::memcpy(buf, &le, sizeof(le));
+  return sizeof(T);
+}
 
-CIPC_SIZED_SERIALIZATION_SPECIALIZATION(std::string)
+template<
+    typename T,
+    typename enable_if_integral_serializable<T>::type = true>
+std::size_t serialized_size(const T& x) {
+  return sizeof(T);
+}
+
+template<
+    typename T,
+    typename enable_if_integral_serializable<T>::type = true>
+std::size_t deserialize(T* x, const void* buf, std::size_t buf_size) {
+  if (buf_size < sizeof(T)) {
+    return 0;
+  }
+  typename std::make_unsigned<T>::type le;
+  std::memcpy(&le, buf, sizeof(le));
+  *x = le_to_host<T>(le);
+  return sizeof(T);
+}
+
+// Boolean
+
+template<
+    typename T,
+    typename std::enable_if<std::is_same<T, bool>::value, bool>::type = true>
+std::size_t serialize(const T& x, void* buf, std::size_t buf_size) {
+  return serialize(static_cast<std::uint8_t>(x), buf, buf_size);
+}
+
+template<
+    typename T,
+    typename std::enable_if<std::is_same<T, bool>::value, bool>::type = true>
+std::size_t serialized_size(const T& x) {
+  return serialized_size(static_cast<std::uint8_t>(x));
+}
+
+template<
+    typename T,
+    typename std::enable_if<std::is_same<T, bool>::value, bool>::type = true>
+std::size_t deserialize(T* x, const void* buf, std::size_t buf_size) {
+  std::uint8_t byte;
+  const auto n_read_bytes = deserialize(&byte, buf, buf_size);
+  *x = static_cast<bool>(byte);
+  return n_read_bytes;
+}
+
+// Floating point.
+
+template<typename T>
+using enable_if_float_serializable = typename std::enable_if<
+    std::is_floating_point<T>::value, bool>;
+
+template<
+    typename T,
+    typename enable_if_float_serializable<T>::type = true>
+std::size_t serialize(const T& x, void* buf, std::size_t buf_size) {
+  if (buf_size < sizeof(T)) {
+    return 0;
+  }
+  std::memcpy(buf, &x, sizeof(x));
+  return sizeof(x);
+}
+
+template<
+    typename T,
+    typename enable_if_float_serializable<T>::type = true>
+std::size_t serialized_size(const T& x) {
+  return sizeof(x);
+}
+ 
+template<
+    typename T,
+    typename enable_if_float_serializable<T>::type = true>
+std::size_t deserialize(T* x, const void* buf, std::size_t buf_size) {
+  if (buf_size < sizeof(T)) {
+    return 0;
+  }
+  std::memcpy(x, buf, sizeof(T));
+  return sizeof(T);
+}
+
+// Builtin complex types
+
+std::size_t serialize(const std::string& x, void* buf, std::size_t buf_size);
+
+std::size_t serialized_size(const std::string& x);
+
+std::size_t deserialize(std::string* x, const void* buf, std::size_t buf_size);
+
+// List-like types
+
+using CollectionSize = std::uint32_t;
+
+template<template<typename...> class T, template<typename...> class U>
+struct is_same_template : std::false_type {};
+
+template<template<typename...> class T>
+struct is_same_template<T, T> : std::true_type {};
+
+template<template<typename...> class T>
+using enable_if_list_like = typename std::enable_if<
+    is_same_template<T, std::deque>::value ||
+        is_same_template<T, std::list>::value ||
+        is_same_template<T, std::vector>::value,
+    bool>;
+
+template<
+    template<typename...> class Collection,
+    typename Item,
+    typename enable_if_list_like<Collection>::type = true>
+std::size_t serialized_size(const Collection<Item>& x) {
+  std::size_t size = sizeof(CollectionSize);
+  for (const auto& item : x) {
+    size += serialized_size(item);
+  }
+  return size;
+}
+
+template<
+    template<typename...> class Collection,
+    typename Item,
+    typename enable_if_list_like<Collection>::type = true>
+std::size_t serialize(
+    const Collection<Item>& x, void* buf, std::size_t buf_size) {
+  const auto size = serialized_size(x);
+  auto* cursor = reinterpret_cast<uint8_t*>(buf);
+  const auto* start = cursor;
+  if (size > buf_size) {
+    return 0;
+  }
+  const CollectionSize len = x.size();
+  const auto len_size = serialize(len, buf, buf_size);
+  if (len_size == 0) {
+    return 0;
+  }
+  buf_size -= len_size;
+  cursor += len_size;
+  for (const auto& item : x) {
+    const auto written_bytes = serialize(item, cursor, buf_size);
+    if (written_bytes == 0) {
+      return 0;
+    }
+    buf_size -= written_bytes;
+    cursor += written_bytes;
+  }
+  return cursor - start;
+}
+
+template<
+    template<typename...> class Collection,
+    typename Item,
+    typename enable_if_list_like<Collection>::type = true>
+std::size_t deserialize(
+    Collection<Item>* x, const void* buf, std::size_t buf_size) {
+  x->clear();
+  auto* cursor = reinterpret_cast<const uint8_t*>(buf);
+  const auto* start = cursor;
+  CollectionSize n_items;
+  auto n_read_bytes = deserialize(&n_items, cursor, buf_size);
+  if (n_read_bytes == 0) {
+    return 0;
+  }
+  cursor += n_read_bytes;
+  buf_size -= n_read_bytes;
+  while (n_items > 0) {
+    Item item;
+    n_read_bytes = deserialize(&item, cursor, buf_size);
+    if (n_read_bytes == 0) {
+      return 0;
+    }
+    x->push_back(std::move(item));
+    cursor += n_read_bytes;
+    buf_size -= n_read_bytes;
+    --n_items;
+  }
+  return cursor - start;
+}
+
+// Map-like types
+
+template<template<typename...> class T>
+using enable_if_map_like = typename std::enable_if<
+    is_same_template<T, std::map>::value ||
+        is_same_template<T, std::unordered_map>::value,
+    bool>;
+
+template<
+    template<typename...> class Map,
+    typename Key,
+    typename Value,
+    typename enable_if_map_like<Map>::type = true>
+std::size_t serialized_size(const Map<Key, Value>& x) {
+  std::size_t size = sizeof(CollectionSize);
+  for (const auto& pair : x) {
+    size += serialized_size(pair.first);
+    size += serialized_size(pair.second);
+  }
+  return size;
+}
+
+template<
+    template<typename...> class Map,
+    typename Key,
+    typename Value,
+    typename enable_if_map_like<Map>::type = true>
+std::size_t serialize(
+    const Map<Key, Value>& x, void* buf, std::size_t buf_size) {
+  const auto size = serialized_size(x);
+  auto* cursor = reinterpret_cast<uint8_t*>(buf);
+  const auto* start = cursor;
+  if (size > buf_size) {
+    return 0;
+  }
+  const CollectionSize len = x.size();
+  const auto len_size = serialize(len, buf, buf_size);
+  if (len_size == 0) {
+    return 0;
+  }
+  buf_size -= len_size;
+  cursor += len_size;
+  for (const auto& pair : x) {
+    {
+      const auto written_bytes = serialize(pair.first, cursor, buf_size);
+      if (written_bytes == 0) {
+        return 0;
+      }
+      buf_size -= written_bytes;
+      cursor += written_bytes;
+    }
+    {
+      const auto written_bytes = serialize(pair.second, cursor, buf_size);
+      if (written_bytes == 0) {
+        return 0;
+      }
+      buf_size -= written_bytes;
+      cursor += written_bytes;
+    }
+  }
+  return cursor - start;
+}
+
+template<
+    template<typename...> class Map,
+    typename Key,
+    typename Value,
+    typename enable_if_map_like<Map>::type = true>
+std::size_t deserialize(
+    Map<Key, Value>* x, const void* buf, std::size_t buf_size) {
+  x->clear();
+  auto* cursor = reinterpret_cast<const uint8_t*>(buf);
+  const auto* start = cursor;
+  CollectionSize n_items;
+  auto n_read_bytes = deserialize(&n_items, cursor, buf_size);
+  if (n_read_bytes == 0) {
+    return 0;
+  }
+  cursor += n_read_bytes;
+  buf_size -= n_read_bytes;
+  while (n_items > 0) {
+    Key key;
+    n_read_bytes = deserialize(&key, cursor, buf_size);
+    if (n_read_bytes == 0) {
+      return 0;
+    }
+    cursor += n_read_bytes;
+    buf_size -= n_read_bytes;
+    Value value;
+    n_read_bytes = deserialize(&value, cursor, buf_size);
+    if (n_read_bytes == 0) {
+      return 0;
+    }
+    cursor += n_read_bytes;
+    buf_size -= n_read_bytes;
+    --n_items;
+    x->insert(std::make_pair(std::move(key), std::move(value)));
+  }
+  return cursor - start;
+}
+
+// Option
 
 }  // namespace cipc
 
