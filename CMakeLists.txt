@@ -47,6 +47,8 @@ function(cipc_define_library_target)
     target_include_directories(cipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(cipc Threads::Threads)
     set_target_properties(cipc PROPERTIES CXX_STANDARD 11)
+    install(TARGETS cipc)
+    install(DIRECTORY cipc DESTINATION include FILES_MATCHING PATTERN "*.h")
 endfunction()
 
 function(cipc_define_test_target)
