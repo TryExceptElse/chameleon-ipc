@@ -18,7 +18,7 @@
 # CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.5)
 project(chameleon)
 
 include(cmake/gtest.cmake)
@@ -47,6 +47,8 @@ function(cipc_define_library_target)
     target_include_directories(cipc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(cipc Threads::Threads)
     set_target_properties(cipc PROPERTIES CXX_STANDARD 11)
+    install(TARGETS cipc)
+    install(DIRECTORY cipc DESTINATION include FILES_MATCHING PATTERN "*.h")
 endfunction()
 
 function(cipc_define_test_target)
