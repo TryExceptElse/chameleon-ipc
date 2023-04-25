@@ -88,6 +88,8 @@ class Method:
     Stores information about a specific interface method.
     """
     name: str  # method name, as it appears in C++.
+    return_type: str
+    parameters: ty.List['Parameter']
 
 
 @dataclass
@@ -98,3 +100,14 @@ class Callback:
     name: str
     register_method: str
     remove_method: str
+    return_type: str
+    parameters: ty.List['Parameter']
+
+
+@dataclass
+class Parameter:
+    """
+    Stores information about a parameter for a method or callback.
+    """
+    name: str
+    type: str

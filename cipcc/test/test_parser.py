@@ -26,7 +26,7 @@ import pytest
 from ..parser import (
     Parser, Field, Annotation, parse_annotations, parse_fields
 )
-from ..interface import Serializable
+from ..interface import Serializable, Method, Parameter
 from .util import get_resource
 
 
@@ -102,6 +102,130 @@ class TestParser:
         name_field = foo.fields['name']
         assert name_field.name == 'name'
         assert name_field.type_name == 'std::string'
+
+    def test_accessor_method(self):
+        header = get_resource('method/accessor.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        accessor = interface.methods['access()const']
+        assert accessor == Method(
+            name='access()const',
+            return_type='int',
+            parameters=[],
+        )
+
+    def test_binary_method(self):
+        header = get_resource('method/binary.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        accessor = interface.methods['DoTheThing(std::string,int)const']
+        assert accessor == Method(
+            name='DoTheThing(std::string,int)const',
+            return_type='int',
+            parameters=[
+                Parameter(name='foo', type='std::string'),
+                Parameter(name='baz', type='int'),
+            ],
+        )
+
+    def test_consumer_method(self):
+        header = get_resource('method/consumer.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        accessor = interface.methods['DoTheThing(std::int32_t)const']
+        assert accessor == Method(
+            name='DoTheThing(std::int32_t)const',
+            return_type='void',
+            parameters=[Parameter(name='foo', type='std::int32_t')],
+        )
+
+    def test_method_with_default_impl(self):
+        header = get_resource('method/default_impl.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        accessor = interface.methods['DoTheThing(std::int32_t)const']
+        assert accessor == Method(
+            name='DoTheThing(std::int32_t)const',
+            return_type='void',
+            parameters=[Parameter(name='foo', type='std::int32_t')],
+        )
+
+    def test_multiline_method(self):
+        header = get_resource('method/multiline.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        accessor = interface.methods['DoTheThing(int,int)const']
+        assert accessor == Method(
+            name='DoTheThing(int,int)const',
+            return_type='int',
+            parameters=[Parameter(name='foo', type='std::int32_t')],
+        )
+
+    def test_optional_param_method(self):
+        header = get_resource('method/optional_param.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        accessor_a = interface.methods['DoTheThing(int)']
+        assert accessor_a == Method(
+            name='DoTheThing(int)',
+            return_type='int',
+            parameters=[Parameter(name='foo', type='int')],
+        )
+        accessor_b = interface.methods['DoTheThing(int)']
+        assert accessor_b == Method(
+            name='DoTheThing(int,int)',
+            return_type='int',
+            parameters=[
+                Parameter(name='foo', type='int'),
+                Parameter(name='flags', type='int'),
+            ],
+        )
+
+    def test_overloaded_method(self):
+        header = get_resource('method/overloaded_method.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        assert interface.methods['Encode(std::string)const'] == Method(
+            name='DoTheThing(std::string)const',
+            return_type='int',
+            parameters=[Parameter(name='x', type='std::string')],
+        )
+        assert interface.methods['Encode(std::int32_t)const'] == Method(
+            name='DoTheThing(std::string)const',
+            return_type='int',
+            parameters=[Parameter(name='x', type='std::int32_t')],
+        )
+
+    def test_unary_method(self):
+        header = get_resource('method/unary.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['Interface']
+        assert interface.name == 'Interface'
+        accessor = interface.methods['Encode(int)const']
+        assert accessor == Method(
+            name='Encode(int)const',
+            return_type='int',
+            parameters=[Parameter(name='foo', type='int')],
+        )
+
+    def test_namespaced_interface(self):
+        header = get_resource('method/namespace.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['ns1::ns2::Interface']
+        assert interface.name == 'ns1::ns2::Interface'
+        accessor = interface.methods['DoTheThing(int)']
+        assert accessor == Method(
+            name='DoTheThing(int)',
+            return_type='int',
+            parameters=[Parameter(name='x', type='int')],
+        )
 
 
 class TestAnnotations:
