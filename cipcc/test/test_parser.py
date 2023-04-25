@@ -103,6 +103,30 @@ class TestParser:
         assert name_field.name == 'name'
         assert name_field.type_name == 'std::string'
 
+    def test_namespaced_serializable(self):
+        header = get_resource('serializable/namespaced_struct.h')
+        profile = Parser().parse([header])
+        foo = profile.serializable_types['bar::baz::Foo']
+        assert foo.type == Serializable.Type.STRUCT
+        id_field = foo.fields['id']
+        assert id_field.name == 'id'
+        assert id_field.type_name == 'std::size_t'
+        name_field = foo.fields['name']
+        assert name_field.name == 'name'
+        assert name_field.type_name == 'std::string'
+
+    def test_nested_serializable(self):
+        header = get_resource('serializable/nested_struct.h')
+        profile = Parser().parse([header])
+        foo = profile.serializable_types['bar::Interface::Foo']
+        assert foo.type == Serializable.Type.STRUCT
+        id_field = foo.fields['id']
+        assert id_field.name == 'id'
+        assert id_field.type_name == 'std::size_t'
+        name_field = foo.fields['name']
+        assert name_field.name == 'name'
+        assert name_field.type_name == 'std::string'
+
     def test_accessor_method(self):
         header = get_resource('method/accessor.h')
         profile = Parser().parse([header])
