@@ -178,7 +178,6 @@ class TestFieldParse:
         ]
 
     def test_multiline_declaration(self):
-
         fields = parse_fields("""
         int
             a = 1,
