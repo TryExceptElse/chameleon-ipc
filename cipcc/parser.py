@@ -223,22 +223,26 @@ def code_walk(
         deferred_event = 0
 
         # Handle comments.
-        if char in '/*' and state.commented_line.endswith('/'):  # Comment start
-            state.comment_start = '/' + char
-            state.line = state.line[:-1]
-            state.scope_text[state.scope_index] = \
-                state.scope_text[state.scope_index][:-1]
-        elif all((
-            state.comment_start == '/*',
-            char == '/',
-            state.commented_line.endswith('*')
-        )):
-            state.comment_start = ''
+        if not state.is_quoted:
+            if char in '/*' and state.commented_line.endswith('/'):  # Start
+                state.comment_start = '/' + char
+                state.line = state.line[:-1]
+                state.scope_text[state.scope_index] = \
+                    state.scope_text[state.scope_index][:-1]
+            elif all((
+                state.comment_start == '/*',
+                char == '/',
+                state.commented_line.endswith('*')
+            )):  # End
+                state.comment_start = ''
+        if char != '\n':
+            state.commented_line += char
 
         # Handle code constructs.
         if char == '\n':
             state.notify(CodeEvent.LINE_END)
             state.line = ''
+            state.commented_line = ''
             state.line_no += 1
             state.col_no = 0
             if state.comment_start == '//':
