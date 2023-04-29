@@ -321,16 +321,20 @@ class Parser:
         :return: Profile containing parsed interfaces.
         """
         profile = Profile()
+        namespace_observer = NamespaceObserver()
 
         def watch_for_root_annotations(_, state: 'CodeState') -> None:
             annotation = parse_annotations(state.line)
             if not annotation:
                 return
             kwargs = annotation.kwargs
+            namespace = namespace_observer.namespace
             if annotation.key == 'Serializable':
-                state.add_observer(SerializableCodeObserver(profile, **kwargs))
+                state.add_observer(SerializableCodeObserver(
+                    profile, namespace, **kwargs
+                ))
             elif annotation.key == 'Interface':
-                state.add_observer(InterfaceCodeObserver(profile))
+                state.add_observer(InterfaceCodeObserver(profile, namespace))
 
         for header in headers:
             if header.is_dir():
@@ -341,7 +345,7 @@ class Parser:
             root_observer = CodeObserver(
                 watch_for_root_annotations, events=CodeEvent.LINE_END
             )
-            code_walk(text, header.name, [root_observer])
+            code_walk(text, header.name, [root_observer, namespace_observer])
 
         return profile
 
@@ -353,13 +357,16 @@ class SerializableCodeObserver(CodeObserver):
         r'(?P<type>struct|class|enum)\s+(?:\S+\s+)*(?P<name>\w+)\s*{$'
     )
 
-    def __init__(self, profile: Profile, auto: bool = True) -> None:
+    def __init__(
+            self, profile: Profile, namespace: str, auto: bool = True
+    ) -> None:
         """
         Initializes SerializableCodeObserver.
 
         :param profile: Profile to add parsed Serializable to.
         """
         super().__init__(self.__call__, CodeEvent.BRACKET_START)
+        self.namespace = namespace
         self.auto = auto
         self.name = None
         self.scope_brace_stack = []
@@ -495,14 +502,58 @@ class ExplicitFieldCodeObserver(CodeObserver):
             self.field_prefix = None
 
 
+class NamespaceObserver(CodeObserver):
+    """
+    Tracks namespace changes.
+
+    The current namespace is made available via the .namespace attribute.
+    """
+    DECLARATION_PATTERN = re.compile(r'namespace\s+(?P<name>[\w:]+)\s?{$')
+
+    class NamespaceLayer(ty.NamedTuple):
+        name: str  # Name. May contain combined namespaces (Ex: 'a::b')
+        brace_stack: ty.List[str]  # Brace stack at declaration site.
+
+    def __init__(self) -> None:
+        handled_events = CodeEvent.BRACKET_START | CodeEvent.BRACKET_END
+        super().__init__(self.__call__, handled_events)
+        self.namespaces: ty.List[NamespaceObserver.NamespaceLayer] = []
+
+    def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
+        """Handles namespace start or end."""
+        if event == CodeEvent.BRACKET_START and state.brace_stack[-1] == '{':
+            for pattern in (
+                    self.DECLARATION_PATTERN,
+                    SerializableCodeObserver.DECLARATION_PATTERN
+            ):
+                if match := pattern.search(state.scope_prefix):
+                    self.namespaces.append(self.NamespaceLayer(
+                        name=match['name'], brace_stack=state.brace_stack.copy()
+                    ))
+                    break
+
+        elif (
+                event == CodeEvent.BRACKET_END and
+                state.brace_stack[-1] == '}' and
+                self.namespaces and
+                state.brace_stack == self.namespaces[-1].brace_stack
+        ):
+            self.namespaces.pop()
+
+    @property
+    def namespace(self) -> str:
+        return '::'.join(layer.name for layer in self.namespaces)
+
+
 class InterfaceCodeObserver(CodeObserver):
     """Handles interface definitions."""
 
-    def __init__(self, profile: Profile) -> None:
+    def __init__(self, profile: Profile, namespace: str) -> None:
         handled_events = CodeEvent.LINE_END | CodeEvent.BRACKET_END
         super().__init__(self.__call__, handled_events)
         self.name = None
         self.profile = profile
+        self.namespace = namespace
 
     def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
         if not self.name:
