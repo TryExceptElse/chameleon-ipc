@@ -385,7 +385,8 @@ class SerializableCodeObserver(CodeObserver):
                     'Serializable type had unrecognized declaration: '
                     f'{repr(prefix_text)}.'
                 )
-            self.name = match['name']
+            self.name = '::'.join((self.namespace, match['name'])) \
+                if self.namespace else match['name']
             self.type = {
                 'struct': Serializable.Type.STRUCT,
                 'class': Serializable.Type.STRUCT,
