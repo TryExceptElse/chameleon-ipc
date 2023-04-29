@@ -24,7 +24,7 @@ Test module containing Parser tests.
 import pytest
 
 from ..parser import (
-    Parser, Field, Annotation, parse_annotations, parse_fields
+    Parser, Field, Annotation, parse_annotations, parse_fields, parse_methods
 )
 from ..interface import Serializable, Method, Parameter
 from .util import get_resource
@@ -365,3 +365,93 @@ class TestFieldParse:
     def test_namespaced_type(self):
         fields = parse_fields('std::size_t foo')
         assert fields == [Field('foo', type_name='std::size_t')]
+
+
+class TestMethodParse:
+    def test_unary_function(self):
+        methods = parse_methods('int foo(int x)')
+        assert methods == [
+            Method(
+                'foo(int)',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
+    def test_binary_function(self):
+        methods = parse_methods('int foo(std::string x, std::size_t y)')
+        assert methods == [
+            Method(
+                'foo(std::string,std::size_t)',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
+    def test_consumer(self):
+        methods = parse_methods('void foo(int x)')
+        assert methods == [
+            Method(
+                'foo(int)',
+                return_type='void',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
+    def test_producer(self):
+        methods = parse_methods('std::string foo()')
+        assert methods == [
+            Method('foo()', return_type='std::string', parameters=[]),
+        ]
+
+    def test_function_with_attribute(self):
+        methods = parse_methods('[[nodiscard]] int foo(int x)')
+        assert methods == [
+            Method(
+                'foo(int)',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
+    def test_function_with_attribute_macro(self):
+        methods = parse_methods(
+            'LIBRARY_DEPRECATED("Don\'t use") int foo(int x)'
+        )
+        assert methods == [
+            Method(
+                'foo(int)',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
+    def test_function_with_default(self):
+        methods = parse_methods('int foo(int x = 0)')
+        assert methods == [
+            Method('foo()', return_type='int', parameters=[]),
+            Method(
+                'foo(int)',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
+    def test_function_with_multiple_defaults(self):
+        methods = parse_methods('int foo(int x = 0, std::string msg = "")')
+        assert methods == [
+            Method('foo()', return_type='int', parameters=[]),
+            Method(
+                'foo(int)',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+            Method(
+                'foo(int,std::string)',
+                return_type='int',
+                parameters=[
+                    Parameter('x', type='int'),
+                    Parameter('msg', type='std::string'),
+                ],
+            ),
+        ]
