@@ -91,6 +91,18 @@ class TestParser:
         assert name_field.name == 'name'
         assert name_field.type_name == 'std::string'
 
+    def test_struct_with_multiline_declaration(self):
+        header = get_resource('serializable/struct_multiline_decl.h')
+        profile = Parser().parse([header])
+        foo = profile.serializable_types['Foo']
+        assert foo.type == Serializable.Type.STRUCT
+        id_field = foo.fields['id']
+        assert id_field.name == 'id'
+        assert id_field.type_name == 'std::size_t'
+        name_field = foo.fields['name']
+        assert name_field.name == 'name'
+        assert name_field.type_name == 'std::string'
+
     def test_struct_with_defaults(self):
         header = get_resource('serializable/struct_with_defaults.h')
         profile = Parser().parse([header])
