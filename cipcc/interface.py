@@ -78,8 +78,9 @@ class Interface:
     Overloads are considered separate methods for CIPC's purposes.
     """
     name: str  # Type name, as it appears in C++.
-    methods: ty.Dict[str, 'Method']
-    callbacks: ty.Dict[str, 'Callback']
+    methods: ty.Dict[str, 'Method'] = dataclasses.field(default_factory=dict)
+    callbacks: ty.Dict[str, 'Callback'] = \
+        dataclasses.field(default_factory=dict)
 
 
 @dataclass
