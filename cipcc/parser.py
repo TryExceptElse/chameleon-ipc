@@ -257,7 +257,7 @@ def code_walk(
                     state.quoting[char] = False
                     state.notify(CodeEvent.QUOTE_END)
                     state.scope_text.pop()
-        else:
+        elif not state.is_commented:
             if char in '"\'':  # Begin quote.
                 state.quoting[char] = True
                 state.scope_text.append('')
