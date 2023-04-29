@@ -79,6 +79,18 @@ class TestParser:
             assert id_field.name == field_name
             assert id_field.type_name == 'std::int32_t'
 
+    def test_struct_on_single_line(self):
+        header = get_resource('serializable/struct_inline.h')
+        profile = Parser().parse([header])
+        foo = profile.serializable_types['Foo']
+        assert foo.type == Serializable.Type.STRUCT
+        id_field = foo.fields['id']
+        assert id_field.name == 'id'
+        assert id_field.type_name == 'std::size_t'
+        name_field = foo.fields['name']
+        assert name_field.name == 'name'
+        assert name_field.type_name == 'std::string'
+
     def test_struct_with_defaults(self):
         header = get_resource('serializable/struct_with_defaults.h')
         profile = Parser().parse([header])
