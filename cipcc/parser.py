@@ -23,6 +23,7 @@ Module containing interface parser.
 """
 import ast
 import contextlib
+import functools
 import re
 from dataclasses import dataclass
 import enum
@@ -561,3 +562,22 @@ def parse_fields(text: str) -> ty.List['Field']:
 LABEL_REGEX = re.compile(r'^\s+(?P<label>\w+):\s')
 FIELD_TYPE_NAME_PATTERN = re.compile(r'^\s*(?P<type_name>[\w:<>]+)\s+')
 FIELD_NAME_PATTERN = re.compile(r'^\s*(?P<name>\w+)')
+
+
+@functools.singledispatch
+def remove_prefix(pattern: ty.Union[str, re.Pattern], text: str) -> str:
+    """
+    Removes prefix matching passed pattern from text.
+
+    :param pattern: Regex pattern to match.
+    :param text: Text to remove prefix from.
+    :return: Text without prefix.
+    """
+    return remove_prefix(re.compile(pattern), text)
+
+
+@remove_prefix.register
+def _(pattern: re.Pattern, text: str) -> str:
+    if match := pattern.match(text):
+        text = text[match.end():]
+    return text
