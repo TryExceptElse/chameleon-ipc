@@ -346,7 +346,7 @@ class SerializableCodeObserver(CodeObserver):
     """Handles serializable type declarations."""
 
     DECLARATION_PATTERN = re.compile(
-        r'(?P<type>struct|class|enum) +(?:\S+ +)*(?P<name>\w+) *{'
+        r'(?P<type>struct|class|enum)\s+(?:\S+\s+)*(?P<name>\w+)\s*{$'
     )
 
     def __init__(self, profile: Profile, auto: bool = True) -> None:
@@ -365,12 +365,14 @@ class SerializableCodeObserver(CodeObserver):
 
     def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
         if event == CodeEvent.BRACKET_START:
-            match = self.DECLARATION_PATTERN.match(state.line)
+            declaration = state.scope_prefix
+            match = self.DECLARATION_PATTERN.search(declaration)
             if not match:
+                prefix_text = remove_prefix(r'(?.*})\s*', declaration)
                 raise ParsingError(
                     state,
                     'Serializable type had unrecognized declaration: '
-                    f'{repr(state.line)}.'
+                    f'{repr(prefix_text)}.'
                 )
             self.name = match['name']
             self.type = {
