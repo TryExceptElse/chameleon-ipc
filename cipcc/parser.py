@@ -120,10 +120,30 @@ class CodeState:
             if observer.events & event:
                 observer(event, self)
 
+    def scope_statement(self, scope_index: int = -1):
+        scope_text = self.scope_text[scope_index]
+        return scope_text[scope_text.rfind(';') + 1:]
+
     @property
     def statement(self) -> str:
-        scope_text = self.scope_text[self.scope_index]
-        return scope_text[scope_text.rfind(';') + 1:]
+        return self.scope_statement()
+
+    @property
+    def scope_prefix(self) -> str:
+        """
+        Gets statement preceding current scope.
+
+        This is useful for retrieving the declaration preceding a
+        namespace, class, or other type when an opening bracket
+        is encountered.
+
+        The returned text is likely to contain significant unexpected
+        text at the beginning, due to functions or other code constructs
+        which precede the declaration of interest. It is up to the
+        consumer of the returned prefix to handle this.
+        """
+        assert self.scope_index > 0
+        return self.scope_statement(-2)
 
 
 class CodeEvent(enum.IntEnum):
