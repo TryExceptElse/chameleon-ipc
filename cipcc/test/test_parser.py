@@ -455,3 +455,26 @@ class TestMethodParse:
                 ],
             ),
         ]
+
+    def test_function_with_struct_default(self):
+        methods = parse_methods('int foo(Conf conf = {"name", 0})')
+        assert methods == [
+            Method('foo()', return_type='int', parameters=[]),
+            Method(
+                'foo(int)',
+                return_type='int',
+                parameters=[Parameter('conf', type='Conf')],
+            ),
+        ]
+
+    def test_function_with_array_param(self):
+        with pytest.raises(ValueError):
+            parse_methods('int f(int (*(*x)(double))[3] = nullptr)')
+
+    def test_function_with_pointer_param(self):
+        with pytest.raises(ValueError):
+            parse_methods('int f(const int* x = nullptr)')
+
+    def test_function_with_reference_param(self):
+        with pytest.raises(ValueError):
+            parse_methods('int f(const int& x = nullptr)')
