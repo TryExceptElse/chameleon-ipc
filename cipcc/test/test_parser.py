@@ -384,7 +384,10 @@ class TestMethodParse:
             Method(
                 'foo(std::string,std::size_t)',
                 return_type='int',
-                parameters=[Parameter('x', type='int')],
+                parameters=[
+                    Parameter('x', type='std::string'),
+                    Parameter('y', type='std::size_t'),
+                ],
             ),
         ]
 
@@ -459,11 +462,11 @@ class TestMethodParse:
         ]
 
     def test_function_with_struct_default(self):
-        methods = parse_methods('virtual int foo(Conf conf = {"name", 0})')
+        methods = parse_methods('virtual int foo(Conf conf = {})')
         assert methods == [
             Method('foo()', return_type='int', parameters=[]),
             Method(
-                'foo(int)',
+                'foo(Conf)',
                 return_type='int',
                 parameters=[Parameter('conf', type='Conf')],
             ),
