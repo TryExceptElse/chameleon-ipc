@@ -472,6 +472,24 @@ class TestMethodParse:
             ),
         ]
 
+    def test_non_virtual_function(self):
+        with pytest.raises(ValueError):
+            parse_methods('int foo(int x)')  # Cannot be overridden
+
+    def test_final_function(self):
+        with pytest.raises(ValueError):
+            parse_methods('int foo(int x) final')  # Cannot be overridden
+
+    def test_override_function(self):
+        methods = parse_methods('int foo(int x) override')
+        assert methods == [
+            Method(
+                'foo(int)',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
     def test_function_with_array_param(self):
         with pytest.raises(ValueError):
             parse_methods('int f(int (*(*x)(double))[3] = nullptr)')
