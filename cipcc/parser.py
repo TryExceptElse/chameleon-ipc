@@ -37,7 +37,8 @@ from .interface import (
     Field,
     Interface,
     Method,
-    Callback
+    Callback,
+    Parameter,
 )
 
 
@@ -50,7 +51,14 @@ class ParsingError(RuntimeError):
 
 class InvalidFieldDeclaration(ValueError):
     """
-    Exception produced when _parse_fields() is given an
+    Exception produced when parse_fields() is given an
+    invalid declaration.
+    """
+
+
+class InvalidMethodDeclaration(ValueError):
+    """
+    Exception raised when parse_methods() is given an
     invalid declaration.
     """
 
@@ -549,16 +557,106 @@ class NamespaceObserver(CodeObserver):
 class InterfaceCodeObserver(CodeObserver):
     """Handles interface definitions."""
 
+    DECLARATION_PATTERN = re.compile(
+        r'(?P<type>struct|class)\s+(?:\S+\s+)*(?P<name>\w+)\s*{$'
+    )
+
     def __init__(self, profile: Profile, namespace: str) -> None:
-        handled_events = CodeEvent.LINE_END | CodeEvent.BRACKET_END
-        super().__init__(self.__call__, handled_events)
-        self.name = None
-        self.profile = profile
+        super().__init__(self.__call__, CodeEvent.BRACKET_START)
         self.namespace = namespace
+        self.name = None
+        self.scope_brace_stack = []
+        self.profile = profile
+        self.interface = None
+        self.method_observer = None
 
     def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
-        if not self.name:
-            pass  # TODO
+        if event == CodeEvent.BRACKET_START:
+            declaration = state.scope_prefix
+            match = self.DECLARATION_PATTERN.search(declaration)
+            if not match:
+                prefix_text = remove_prefix(r'(?.*})\s*', declaration)
+                raise ParsingError(
+                    state,
+                    'Interface had unrecognized declaration: '
+                    f'{repr(prefix_text)}.'
+                )
+            if match['type'] == 'struct':
+                raise ParsingError(
+                    state,
+                    "Interface declared as a 'struct' rather than as a class. "
+                    'This may cause issues with certain compilers (msvc). '
+                    'Use a class instead.'
+                )
+            self.name = '::'.join((self.namespace, match['name'])) \
+                if self.namespace else match['name']
+            self.scope_brace_stack = state.brace_stack.copy()
+            if self.name in self.profile.serializable_types:
+                raise ParsingError(
+                    state,
+                    f'Serializable with same name: {self.name} already exists '
+                    'in profile.'
+                )
+            if self.name in self.profile.interfaces:
+                raise ParsingError(
+                    state,
+                    f'Interface with same name {self.name} already exists '
+                    'in profile.'
+                )
+            self.interface = Interface(self.name)
+            self.method_observer = MethodCodeObserver(self)
+            self.profile.interfaces[self.name] = self.interface
+            self.events = CodeEvent.BRACKET_END
+        elif event == CodeEvent.BRACKET_END and \
+                state.brace_stack == self.scope_brace_stack:
+            state.remove_observer(self)
+            state.remove_observer(self.method_observer)
+
+
+class MethodCodeObserver(CodeObserver):
+    """
+    Code observer handling interface method definitions.
+
+    This observer will be instantiated and eventually removed by the
+    InterfaceCodeObserver, at the beginning and end respectively
+    of an interface class.
+    """
+    def __init__(self, interface_observer: 'InterfaceCodeObserver') -> None:
+        super().__init__(
+            self.__call__,
+            events=CodeEvent.LINE_END | CodeEvent.STATEMENT_END
+        )
+        self.interface_observer = interface_observer
+        self.ignored_method_prefix = None
+
+    def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
+        # Handle method annotation.
+        if event == CodeEvent.LINE_END and \
+                state.brace_stack == self.interface_observer.scope_brace_stack:
+            annotation = parse_annotations(state.line)
+            if not annotation or annotation.key != 'Method':
+                return
+            self.method_prefix = state.statement
+
+        # Handle end of function declaration with or without body.
+        elif all((
+                event == CodeEvent.STATEMENT_END,
+                self.method_prefix is not None,
+                state.brace_stack == self.interface_observer.scope_brace_stack
+        )) or all((
+                event == CodeEvent.BRACKET_START,
+                state.brace_stack[-1] ==
+                self.interface_observer.scope_brace_stack + ['{'],
+        )):
+            assert state.statement.startswith(self.method_prefix)
+            statement = state.statement[len(self.method_prefix):]
+            try:
+                signature = parse_methods(statement)
+            except InvalidMethodDeclaration as declaration_err:
+                raise ParsingError(
+                    state, str(declaration_err)
+                ) from declaration_err
+            self.method_prefix = None
 
 
 ANNOTATION_PATTERN = re.compile(r'@IPC\((.*)\)')
@@ -600,6 +698,11 @@ def parse_annotations(line: str) -> ty.Optional[Annotation]:
     return Annotation(primary_key, kwargs)
 
 
+LABEL_REGEX = re.compile(r'^\s+(?P<label>\w+):\s')
+FIELD_TYPE_NAME_PATTERN = re.compile(r'^\s*(?P<type_name>[\w:<>]+)\s+')
+FIELD_NAME_PATTERN = re.compile(r'^\s*(?P<name>\w+)')
+
+
 def parse_fields(text: str) -> ty.List['Field']:
     """
     Parse fields from field declaration statement.
@@ -637,9 +740,136 @@ def parse_fields(text: str) -> ty.List['Field']:
     return fields
 
 
-LABEL_REGEX = re.compile(r'^\s+(?P<label>\w+):\s')
-FIELD_TYPE_NAME_PATTERN = re.compile(r'^\s*(?P<type_name>[\w:<>]+)\s+')
-FIELD_NAME_PATTERN = re.compile(r'^\s*(?P<name>\w+)')
+METHOD_SIGNATURE_PATTERN = re.compile(
+    r'(?:(?P<virtual>virtual)\s+)?'
+    r'(?P<return>[\w:]+)\s+'
+    r'(?P<name>\w+)\s*'
+    r'\((?P<params>.*)\)\s*'
+    r'(?P<cv>const)?\s*'
+    r'(?P<ref>override|final)?\s*'
+    r'(?:[\w\[\]()]+\s+)*'  # modifiers and attributes
+    r'(?P<tail_return>->\s*[\w:]+)?$'
+)
+COLLAPSED_PARAM_PATTERNS = [
+    (re.compile(r'\{[^,]*}'), '{}'),
+    (re.compile(r'\([^,]*\)'), '()'),
+]
+PARAM_PATTERN = re.compile(
+    r'(?P<type>(?:const\s+)?[\w:]+(?:(?:const)?(?:\*|&|\s)\s*?)*)\s*'
+    r'(?P<name>\w+)\s*'
+    r'(?P<array>(?:\[.*?])*)\s*'
+    r'(?:=\s*(?P<default>[\w:()\[\]{}"\s]+?))?\s*$'
+)
+PARAM_TYPE_REPLACEMENTS = [
+    (re.compile(r'(\w+)\s+([*&])'), r'\g<1>\g<2>'),
+    (re.compile(r'([*&])(\w+)'), r'\g<1> <2>'),
+]
+
+
+class ParsedParam(ty.NamedTuple):
+    name: str
+    type: str
+    optional: bool
+
+
+def parse_methods(text: str) -> ty.List['Method']:
+    """
+    Parses method signatures from a method declaration.
+
+    Multiple method signatures may be returned if default parameters
+    are present in the parsed signature, which result in multiple
+    overloaded definitions.
+
+    :param text: Method declaration to parse.
+    :return: List[Method]
+    """
+    # Match overall signature structure before handling individual parts.
+    match = METHOD_SIGNATURE_PATTERN.search(text)
+    if not match:
+        raise InvalidMethodDeclaration(
+            f'Signature does not match recognized pattern: {text}'
+        )
+
+    name = match['name']
+
+    # Ensure method may be overridden.
+    if match['ref'] == 'final':
+        raise InvalidMethodDeclaration(
+            f'{name} is declared final, however interface methods must '
+            'be overridable.'
+        )
+    if not match['virtual'] and not match['ref'] == 'override':
+        raise InvalidMethodDeclaration(
+            f'Interface methods must be overridable, however {name} is not '
+            'marked as a virtual method. Add "virtual" or "override" modifiers.'
+        )
+
+    # Determine return type.
+    if match['return'] == 'auto':
+        if not (return_type := match['tail_return']):
+            raise InvalidMethodDeclaration(
+                f'No return type declared in method signature: {text} '
+                f'Inferred return types are not supported in interfaces.'
+            )
+    else:
+        return_type = match['return']
+
+    # Parse parameters
+    params_text = match['params']
+    for simplifying_pattern, replacement in COLLAPSED_PARAM_PATTERNS:
+        params_text = simplifying_pattern.sub(params_text, replacement)
+
+    parsed_params = [
+        parse_param(param_text.strip()) for param_text in params_text.split(',')
+        if param_text
+    ]
+
+    def create_signature_name(base: str, params: ty.List[Parameter]) -> str:
+        return f'{base}({",".join(sig_param.type for sig_param in params)})'
+
+    signatures = []
+    used_params: ty.List[Parameter] = []
+    for param in parsed_params:
+        if param.optional:
+            signatures.append(Method(
+                create_signature_name(name, used_params),
+                return_type=return_type,
+                parameters=used_params.copy(),
+            ))
+        used_params.append(Parameter(param.name, param.type))
+    signatures.append(Method(
+        create_signature_name(name, used_params),
+        return_type=return_type,
+        parameters=used_params.copy())
+    )
+    return signatures
+
+
+def parse_param(text: str) -> ParsedParam:
+    """
+    Parses a single parameter's text.
+
+    See parse_method().
+
+    :param text: Parameter text (Ex: 'int* foo[]')
+    :return: Parsed parameter information.
+    """
+    match = PARAM_PATTERN.search(text)
+    if not match:
+        raise InvalidMethodDeclaration(
+            f'Unparseable method parameter: {repr(text)}.'
+        )
+
+    def normalize_type(type_text: str) -> str:
+        for pattern, substitute in PARAM_TYPE_REPLACEMENTS:
+            type_text = pattern.sub(substitute, type_text)
+        return type_text
+
+    return ParsedParam(
+        name=match['name'],
+        type=normalize_type(match['type'].strip() + match['array']),
+        optional=match['default'] is not None
+    )
 
 
 @functools.singledispatch
