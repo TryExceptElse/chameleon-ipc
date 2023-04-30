@@ -24,7 +24,13 @@ Test module containing Parser tests.
 import pytest
 
 from ..parser import (
-    Parser, Field, Annotation, parse_annotations, parse_fields, parse_methods
+    Parser,
+    Field,
+    Annotation,
+    parse_annotations,
+    parse_fields,
+    parse_methods,
+    parse_param,
 )
 from ..interface import Serializable, Method, Parameter
 from .util import get_resource
@@ -501,3 +507,33 @@ class TestMethodParse:
     def test_function_with_reference_param(self):
         with pytest.raises(ValueError):
             parse_methods('int f(const int& x = nullptr)')
+
+
+class TestParamParse:
+    @pytest.mark.parametrize(
+        'text, param_type, name, optional',
+        [
+            ('int x', 'int', 'x', False),
+            ('int x = 10', 'int', 'x', True),
+            ('int x=10', 'int', 'x', True),
+            ('Conf conf = {}', 'Conf', 'conf', True),
+            ('int foo = default()', 'int', 'foo', True),
+            ('int foo = default ()', 'int', 'foo', True),
+            ('const int* foo = nullptr', 'const int*', 'foo', True),
+            ('const int *foo = nullptr', 'const int*', 'foo', True),
+            ('const int* const* x = nullptr', 'const int* const*', 'x', True),
+            ('int*** x', 'int***', 'x', False),
+            ('const int* foo', 'const int*', 'foo', False),
+            ('const Conf& conf', 'const Conf&', 'conf', False),
+            ('const Conf &conf', 'const Conf&', 'conf', False),
+            ('const int arr[]', 'const int[]', 'arr', False),
+            ('const int arr []', 'const int[]', 'arr', False),
+            ('const int arr[] = {}', 'const int[]', 'arr', True),
+            ('int x[][]', 'int[][]', 'x', False),
+            ('[[maybe_unused]] const int* x', 'const int*', 'x', False),
+            ('LIB_UNUSED const int* x', 'const int*', 'x', False),
+        ]
+    )
+    def test_parameter_parsing(self, text, param_type, name, optional):
+        parsed_param = parse_param(text)
+        assert parsed_param == (name, param_type, optional)
