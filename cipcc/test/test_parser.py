@@ -369,7 +369,7 @@ class TestFieldParse:
 
 class TestMethodParse:
     def test_unary_function(self):
-        methods = parse_methods('int foo(int x)')
+        methods = parse_methods('virtual int foo(int x)')
         assert methods == [
             Method(
                 'foo(int)',
@@ -379,7 +379,7 @@ class TestMethodParse:
         ]
 
     def test_binary_function(self):
-        methods = parse_methods('int foo(std::string x, std::size_t y)')
+        methods = parse_methods('virtual int foo(std::string x, std::size_t y)')
         assert methods == [
             Method(
                 'foo(std::string,std::size_t)',
@@ -389,7 +389,7 @@ class TestMethodParse:
         ]
 
     def test_consumer(self):
-        methods = parse_methods('void foo(int x)')
+        methods = parse_methods('virtual void foo(int x)')
         assert methods == [
             Method(
                 'foo(int)',
@@ -399,13 +399,13 @@ class TestMethodParse:
         ]
 
     def test_producer(self):
-        methods = parse_methods('std::string foo()')
+        methods = parse_methods('virtual std::string foo()')
         assert methods == [
             Method('foo()', return_type='std::string', parameters=[]),
         ]
 
     def test_function_with_attribute(self):
-        methods = parse_methods('[[nodiscard]] int foo(int x)')
+        methods = parse_methods('[[nodiscard]] virtual int foo(int x)')
         assert methods == [
             Method(
                 'foo(int)',
@@ -416,7 +416,7 @@ class TestMethodParse:
 
     def test_function_with_attribute_macro(self):
         methods = parse_methods(
-            'LIBRARY_DEPRECATED("Don\'t use") int foo(int x)'
+            'LIBRARY_DEPRECATED("Don\'t use") virtual int foo(int x)'
         )
         assert methods == [
             Method(
@@ -427,7 +427,7 @@ class TestMethodParse:
         ]
 
     def test_function_with_default(self):
-        methods = parse_methods('int foo(int x = 0)')
+        methods = parse_methods('virtual int foo(int x = 0)')
         assert methods == [
             Method('foo()', return_type='int', parameters=[]),
             Method(
@@ -438,7 +438,9 @@ class TestMethodParse:
         ]
 
     def test_function_with_multiple_defaults(self):
-        methods = parse_methods('int foo(int x = 0, std::string msg = "")')
+        methods = parse_methods(
+            'virtual int foo(int x = 0, std::string msg = "")'
+        )
         assert methods == [
             Method('foo()', return_type='int', parameters=[]),
             Method(
@@ -457,7 +459,7 @@ class TestMethodParse:
         ]
 
     def test_function_with_struct_default(self):
-        methods = parse_methods('int foo(Conf conf = {"name", 0})')
+        methods = parse_methods('virtual int foo(Conf conf = {"name", 0})')
         assert methods == [
             Method('foo()', return_type='int', parameters=[]),
             Method(
