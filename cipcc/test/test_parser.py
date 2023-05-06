@@ -518,6 +518,15 @@ class TestParamParse:
         [
             ('int x', 'int', 'x', False),
             ('int x = 10', 'int', 'x', True),
+            ('std::size_t x = foo[1]', 'std::size_t', 'x', True),
+            ('std::vector<int> x = {}', 'std::vector<int>', 'x', True),
+            ('std::vector< int> x = {}', 'std::vector<int>', 'x', True),
+            ('std::vector <int> x = {}', 'std::vector<int>', 'x', True),
+            ('std::map<int, int> x = {}', 'std::map<int,int>', 'x', True),
+            (
+                'std::vector<std::vector<int>> x = {}',
+                'std::vector<std::vector<int>>', 'x', True
+            ),
             ('int x=10', 'int', 'x', True),
             ('Conf conf = {}', 'Conf', 'conf', True),
             ('int foo = default()', 'int', 'foo', True),

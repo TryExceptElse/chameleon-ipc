@@ -63,6 +63,29 @@ class InvalidMethodDeclaration(ValueError):
     """
 
 
+class NonExtendableMethodError(InvalidMethodDeclaration):
+    """
+    Exception raised when an interface method cannot be overridden.
+
+    This defeats the purpose of an interface, and is therefore an error.
+    """
+
+
+class InvalidParamDeclaration(InvalidMethodDeclaration):
+    """
+    Exception raised when a parameter declaration is invalid.
+    """
+
+
+class ReferenceParamError(InvalidParamDeclaration):
+    """
+    Exception raised when a parameter references external memory.
+
+    References, whether in the form of pointers, references, or array
+    references, cannot be serialized reliably, and so are disallowed.
+    """
+
+
 class InvalidAnnotation(ValueError):
     """
     Exception raised when an annotation with invalid format
@@ -751,18 +774,24 @@ METHOD_SIGNATURE_PATTERN = re.compile(
     r'(?P<tail_return>->\s*[\w:]+)?$'
 )
 COLLAPSED_PARAM_PATTERNS = [
-    (re.compile(r'\{[^,]*}'), '{}'),
-    (re.compile(r'\([^,]*\)'), '()'),
+    (re.compile(r'\{.*}'), '{}'),
+    (re.compile(r'\(.*\)'), '()'),
+    (re.compile(r'<.*>'), '<>'),
 ]
 PARAM_PATTERN = re.compile(
-    r'(?P<type>(?:const\s+)?[\w:]+(?:(?:const)?(?:\*|&|\s)\s*?)*)\s*'
+    r'(?P<type>(?:const\s+)?[\w:]+'  # Leading const qualifier and type name
+    r'(?:\s*<[\w:<>,\s]*>)?'  # Template args.
+    r'(?:(?:const)?(?:\*|&|\s)\s*?)*)\s*'  # 
     r'(?P<name>\w+)\s*'
     r'(?P<array>(?:\[.*?])*)\s*'
     r'(?:=\s*(?P<default>[\w:()\[\]{}"\s]+?))?\s*$'
 )
 PARAM_TYPE_REPLACEMENTS = [
-    (re.compile(r'(\w+)\s+([*&])'), r'\g<1>\g<2>'),
-    (re.compile(r'([*&])(\w+)'), r'\g<1> <2>'),
+    (re.compile(r'([\w:]+)\s+([*&])'), r'\g<1>\g<2>'),
+    (re.compile(r'([*&])([\w:]+)'), r'\g<1> <2>'),
+    (re.compile(r'\s*,\s*'), ','),
+    (re.compile(r'\s*<\s*'), '<'),
+    (re.compile(r'\s*>\s*'), '>'),
 ]
 
 
@@ -794,12 +823,12 @@ def parse_methods(text: str) -> ty.List['Method']:
 
     # Ensure method may be overridden.
     if match['ref'] == 'final':
-        raise InvalidMethodDeclaration(
+        raise NonExtendableMethodError(
             f'{name} is declared final, however interface methods must '
             'be overridable.'
         )
     if not match['virtual'] and not match['ref'] == 'override':
-        raise InvalidMethodDeclaration(
+        raise NonExtendableMethodError(
             f'Interface methods must be overridable, however {name} is not '
             'marked as a virtual method. Add "virtual" or "override" modifiers.'
         )
@@ -865,9 +894,17 @@ def parse_param(text: str) -> ParsedParam:
             type_text = pattern.sub(substitute, type_text)
         return type_text
 
+    param_type = normalize_type(match['type'].strip() + match['array'])
+    if any(ref_char in param_type for ref_char in '*&[]'):
+        raise ReferenceParamError(
+            f'Parameter types which reference unowned data are unsupported in '
+            f'interface methods. This includes pointers (int*), C++ '
+            f'references (int&), and array parameters (int[]).'
+        )
+
     return ParsedParam(
         name=match['name'],
-        type=normalize_type(match['type'].strip() + match['array']),
+        type=param_type,
         optional=match['default'] is not None
     )
 
