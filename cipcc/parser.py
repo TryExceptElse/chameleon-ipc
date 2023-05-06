@@ -849,8 +849,8 @@ def parse_methods(text: str) -> ty.List['Method']:
         params_text = simplifying_pattern.sub(params_text, replacement)
 
     parsed_params = [
-        parse_param(param_text.strip()) for param_text in params_text.split(',')
-        if param_text
+        parse_param(param_text.strip())
+        for param_text in split_params(params_text)
     ]
 
     def create_signature_name(base: str, params: ty.List[Parameter]) -> str:
@@ -872,6 +872,48 @@ def parse_methods(text: str) -> ty.List['Method']:
         parameters=used_params.copy())
     )
     return signatures
+
+
+def split_params(text: str) -> ty.List[str]:
+    """
+    Splits passed parameter text into individual parameters.
+
+    This acts similar to calling `.split(',')` on the parameter text,
+    however it only splits on commas which are not embedded within a
+    set of angle brackets (<>). Other bracket types are not handled as
+    they are separable by a code observer taking advantage of the scopes
+    denoted by code_walk().
+
+    Additionally, unlike .split(), if an empty text is passed, the
+    returned parameter list will be empty.
+
+    :param text: Text containing all parameters to be split.
+    :return: Split parameters.
+    """
+    params: ty.List[str] = []
+    param = ''
+    depth = 0
+    for char in text:
+        if char == ',' and depth == 0:
+            params.append(param.strip())
+            param = ''
+        else:
+            if char == '<':
+                depth += 1
+            elif char == '>':
+                if depth <= 0:
+                    raise InvalidMethodDeclaration(
+                        f'Mismatched angle brackets in parameter list: {text}'
+                    )
+                depth -= 1
+            param += char
+    if depth > 0:
+        raise InvalidMethodDeclaration(
+            f'Mismatched angle brackets in parameter list: {text}'
+        )
+    if param:
+        params.append(param.strip())
+    return params
 
 
 def parse_param(text: str) -> ParsedParam:

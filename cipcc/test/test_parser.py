@@ -34,6 +34,7 @@ from ..parser import (
     parse_annotations,
     parse_fields,
     parse_methods,
+    split_params,
     parse_param,
 )
 from ..interface import Serializable, Method, Parameter
@@ -511,6 +512,18 @@ class TestMethodParse:
     def test_functions_with_reference_params(self, signature):
         with pytest.raises(ReferenceParamError):
             parse_methods(signature)
+
+
+@pytest.mark.parametrize(
+    'text, expected',
+    [
+        ('int x, int y', ['int x', 'int y']),
+        ('Foo<int, int> data', ['Foo<int, int> data']),
+        ('', []),
+    ]
+)
+def test_parameter_splitting(text, expected):
+    assert split_params(text) == expected
 
 
 class TestParamParse:
