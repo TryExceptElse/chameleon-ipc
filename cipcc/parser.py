@@ -781,8 +781,8 @@ COLLAPSED_PARAM_PATTERNS = [
 PARAM_PATTERN = re.compile(
     r'(?P<type>(?:const\s+)?[\w:]+'  # Leading const qualifier and type name
     r'(?:\s*<[\w:<>,\s]*>)?'  # Template args.
-    r'(?:(?:const)?(?:\*|&|\s)\s*?)*)\s*'  # 
-    r'(?P<name>\w+)\s*'
+    r'(?:(?:const)?(?:\*|&|\s)\s*?)*)\s*'  # Trailing const and ref markers.
+    r'(?<=[\s*&])(?P<name>\w+)\s*'
     r'(?P<array>(?:\[.*?])*)\s*'
     r'(?:=\s*(?P<default>[\w:()\[\]{}"\s]+?))?\s*$'
 )
@@ -885,7 +885,7 @@ def parse_param(text: str) -> ParsedParam:
     """
     match = PARAM_PATTERN.search(text)
     if not match:
-        raise InvalidMethodDeclaration(
+        raise InvalidParamDeclaration(
             f'Unparseable method parameter: {repr(text)}.'
         )
 

@@ -29,6 +29,7 @@ from ..parser import (
     Annotation,
     InvalidAnnotation,
     NonExtendableMethodError,
+    InvalidParamDeclaration,
     ReferenceParamError,
     parse_annotations,
     parse_fields,
@@ -502,7 +503,7 @@ class TestMethodParse:
     @pytest.mark.parametrize(
         'signature',
         [
-            'virtual int f(int (*(*x)(double))[3] = nullptr)',
+            'virtual int f(int x[3] = nullptr)',
             'virtual int f(const int* x = nullptr)',
             'virtual int f(const int& x = nullptr)',
         ]
@@ -557,4 +558,22 @@ class TestParamParse:
     )
     def test_reference_param_detection(self, text):
         with pytest.raises(ReferenceParamError):
+            parse_param(text)
+
+    @pytest.mark.parametrize(
+        'text',
+        [
+            'int (*x)(double)',
+            'int (*(*x)(double))[3] = nullptr',
+        ]
+    )
+    def test_function_pointer_param(self, text):
+        """
+        Test C function pointer params raise some form of param error.
+
+        C-style function pointer parameters are both hard to parse and
+        unsupported, so as long as some form of error is produced, there
+        is not much reason to attempt to parse these.
+        """
+        with pytest.raises(InvalidParamDeclaration):
             parse_param(text)
