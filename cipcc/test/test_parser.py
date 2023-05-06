@@ -27,6 +27,9 @@ from ..parser import (
     Parser,
     Field,
     Annotation,
+    InvalidAnnotation,
+    NonExtendableMethodError,
+    ReferenceParamError,
     parse_annotations,
     parse_fields,
     parse_methods,
@@ -304,7 +307,7 @@ class TestAnnotations:
         assert parse_annotations('') is None
 
     def test_invalid_annotation(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(InvalidAnnotation):
             parse_annotations('// @IPC(Invalid-Annotation)')
 
 
@@ -479,11 +482,11 @@ class TestMethodParse:
         ]
 
     def test_non_virtual_function(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(NonExtendableMethodError):
             parse_methods('int foo(int x)')  # Cannot be overridden
 
     def test_final_function(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(NonExtendableMethodError):
             parse_methods('int foo(int x) final')  # Cannot be overridden
 
     def test_override_function(self):
@@ -496,17 +499,17 @@ class TestMethodParse:
             ),
         ]
 
-    def test_function_with_array_param(self):
-        with pytest.raises(ValueError):
-            parse_methods('int f(int (*(*x)(double))[3] = nullptr)')
-
-    def test_function_with_pointer_param(self):
-        with pytest.raises(ValueError):
-            parse_methods('int f(const int* x = nullptr)')
-
-    def test_function_with_reference_param(self):
-        with pytest.raises(ValueError):
-            parse_methods('int f(const int& x = nullptr)')
+    @pytest.mark.parametrize(
+        'signature',
+        [
+            'virtual int f(int (*(*x)(double))[3] = nullptr)',
+            'virtual int f(const int* x = nullptr)',
+            'virtual int f(const int& x = nullptr)',
+        ]
+    )
+    def test_functions_with_reference_params(self, signature):
+        with pytest.raises(ReferenceParamError):
+            parse_methods(signature)
 
 
 class TestParamParse:
@@ -519,21 +522,30 @@ class TestParamParse:
             ('Conf conf = {}', 'Conf', 'conf', True),
             ('int foo = default()', 'int', 'foo', True),
             ('int foo = default ()', 'int', 'foo', True),
-            ('const int* foo = nullptr', 'const int*', 'foo', True),
-            ('const int *foo = nullptr', 'const int*', 'foo', True),
-            ('const int* const* x = nullptr', 'const int* const*', 'x', True),
-            ('int*** x', 'int***', 'x', False),
-            ('const int* foo', 'const int*', 'foo', False),
-            ('const Conf& conf', 'const Conf&', 'conf', False),
-            ('const Conf &conf', 'const Conf&', 'conf', False),
-            ('const int arr[]', 'const int[]', 'arr', False),
-            ('const int arr []', 'const int[]', 'arr', False),
-            ('const int arr[] = {}', 'const int[]', 'arr', True),
-            ('int x[][]', 'int[][]', 'x', False),
-            ('[[maybe_unused]] const int* x', 'const int*', 'x', False),
-            ('LIB_UNUSED const int* x', 'const int*', 'x', False),
+            ('[[maybe_unused]] const int x', 'const int', 'x', False),
+            ('LIB_UNUSED const int x', 'const int', 'x', False),
         ]
     )
     def test_parameter_parsing(self, text, param_type, name, optional):
         parsed_param = parse_param(text)
         assert parsed_param == (name, param_type, optional)
+
+    @pytest.mark.parametrize(
+        'text', 
+        [
+            'const int* foo = nullptr',
+            'const int *foo = nullptr',
+            'const int* const* x = nullptr',
+            'int*** x',
+            'const int* foo',
+            'const Conf& conf',
+            'const Conf &conf',
+            'const int arr[]',
+            'const int arr []',
+            'const int arr[] = {}',
+            'const std::vector<std::size_t>* result',
+        ]
+    )
+    def test_reference_param_detection(self, text):
+        with pytest.raises(ReferenceParamError):
+            parse_param(text)
