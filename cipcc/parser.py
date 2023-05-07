@@ -42,6 +42,10 @@ from .interface import (
 )
 
 
+#######################################################################
+# Parsing Exceptions
+
+
 class ParsingError(RuntimeError):
     """Exception raised when invalid input code is received."""
 
@@ -93,19 +97,8 @@ class InvalidAnnotation(ValueError):
     """
 
 
-BRACE_PAIRS = '{}', '[]', '()'
-BRACE_START_CHARS = [brace_pair[0] for brace_pair in BRACE_PAIRS]
-BRACE_END_CHARS = [brace_pair[1] for brace_pair in BRACE_PAIRS]
-
-
-def _paired_brace(char: str) -> str:
-    with contextlib.suppress(ValueError):
-        index = BRACE_START_CHARS.index(char)
-        return BRACE_END_CHARS[index]
-    with contextlib.suppress(ValueError):
-        index = BRACE_END_CHARS.index(char)
-        return BRACE_START_CHARS[index]
-    raise ValueError(f'Passed char {repr(char)} is not a brace.')
+#######################################################################
+# Basic parsing types.
 
 
 @dataclass
@@ -379,6 +372,10 @@ class Parser:
             code_walk(text, header.name, [root_observer, namespace_observer])
 
         return profile
+
+
+#######################################################################
+# Code observer definitions.
 
 
 class NamespaceObserver(CodeObserver):
@@ -682,6 +679,10 @@ class MethodCodeObserver(CodeObserver):
             self.method_prefix = None
 
 
+#######################################################################
+# Parsing utilities
+
+
 ANNOTATION_PATTERN = re.compile(r'@IPC\((.*)\)')
 ANNOTATION_CONTENT = re.compile(
     r'\s*([a-zA-Z]+)\s*'
@@ -968,3 +969,18 @@ def _(pattern: re.Pattern, text: str) -> str:
     if match := pattern.match(text):
         text = text[match.end():]
     return text
+
+
+BRACE_PAIRS = '{}', '[]', '()'
+BRACE_START_CHARS = [brace_pair[0] for brace_pair in BRACE_PAIRS]
+BRACE_END_CHARS = [brace_pair[1] for brace_pair in BRACE_PAIRS]
+
+
+def _paired_brace(char: str) -> str:
+    with contextlib.suppress(ValueError):
+        index = BRACE_START_CHARS.index(char)
+        return BRACE_END_CHARS[index]
+    with contextlib.suppress(ValueError):
+        index = BRACE_END_CHARS.index(char)
+        return BRACE_START_CHARS[index]
+    raise ValueError(f'Passed char {repr(char)} is not a brace.')
