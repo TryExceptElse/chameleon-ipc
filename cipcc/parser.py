@@ -381,6 +381,49 @@ class Parser:
         return profile
 
 
+class NamespaceObserver(CodeObserver):
+    """
+    Tracks namespace changes.
+
+    The current namespace is made available via the .namespace attribute.
+    """
+    DECLARATION_PATTERN = re.compile(r'namespace\s+(?P<name>[\w:]+)\s?{$')
+
+    class NamespaceLayer(ty.NamedTuple):
+        name: str  # Name. May contain combined namespaces (Ex: 'a::b')
+        brace_stack: ty.List[str]  # Brace stack at declaration site.
+
+    def __init__(self) -> None:
+        handled_events = CodeEvent.BRACKET_START | CodeEvent.BRACKET_END
+        super().__init__(self.__call__, handled_events)
+        self.namespaces: ty.List[NamespaceObserver.NamespaceLayer] = []
+
+    def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
+        """Handles namespace start or end."""
+        if event == CodeEvent.BRACKET_START and state.brace_stack[-1] == '{':
+            for pattern in (
+                    self.DECLARATION_PATTERN,
+                    SerializableCodeObserver.DECLARATION_PATTERN
+            ):
+                if match := pattern.search(state.scope_prefix):
+                    self.namespaces.append(self.NamespaceLayer(
+                        name=match['name'], brace_stack=state.brace_stack.copy()
+                    ))
+                    break
+
+        elif (
+                event == CodeEvent.BRACKET_END and
+                state.brace_stack[-1] == '}' and
+                self.namespaces and
+                state.brace_stack == self.namespaces[-1].brace_stack
+        ):
+            self.namespaces.pop()
+
+    @property
+    def namespace(self) -> str:
+        return '::'.join(layer.name for layer in self.namespaces)
+
+
 class SerializableCodeObserver(CodeObserver):
     """Handles serializable type declarations."""
 
@@ -532,49 +575,6 @@ class ExplicitFieldCodeObserver(CodeObserver):
                     state, str(declaration_err)
                 ) from declaration_err
             self.field_prefix = None
-
-
-class NamespaceObserver(CodeObserver):
-    """
-    Tracks namespace changes.
-
-    The current namespace is made available via the .namespace attribute.
-    """
-    DECLARATION_PATTERN = re.compile(r'namespace\s+(?P<name>[\w:]+)\s?{$')
-
-    class NamespaceLayer(ty.NamedTuple):
-        name: str  # Name. May contain combined namespaces (Ex: 'a::b')
-        brace_stack: ty.List[str]  # Brace stack at declaration site.
-
-    def __init__(self) -> None:
-        handled_events = CodeEvent.BRACKET_START | CodeEvent.BRACKET_END
-        super().__init__(self.__call__, handled_events)
-        self.namespaces: ty.List[NamespaceObserver.NamespaceLayer] = []
-
-    def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
-        """Handles namespace start or end."""
-        if event == CodeEvent.BRACKET_START and state.brace_stack[-1] == '{':
-            for pattern in (
-                    self.DECLARATION_PATTERN,
-                    SerializableCodeObserver.DECLARATION_PATTERN
-            ):
-                if match := pattern.search(state.scope_prefix):
-                    self.namespaces.append(self.NamespaceLayer(
-                        name=match['name'], brace_stack=state.brace_stack.copy()
-                    ))
-                    break
-
-        elif (
-                event == CodeEvent.BRACKET_END and
-                state.brace_stack[-1] == '}' and
-                self.namespaces and
-                state.brace_stack == self.namespaces[-1].brace_stack
-        ):
-            self.namespaces.pop()
-
-    @property
-    def namespace(self) -> str:
-        return '::'.join(layer.name for layer in self.namespaces)
 
 
 class InterfaceCodeObserver(CodeObserver):
