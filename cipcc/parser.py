@@ -627,6 +627,7 @@ class InterfaceCodeObserver(CodeObserver):
             self.method_observer = MethodCodeObserver(self)
             self.profile.interfaces[self.name] = self.interface
             self.events = CodeEvent.BRACKET_END
+            state.add_observer(self.method_observer)
         elif event == CodeEvent.BRACKET_END and \
                 state.brace_stack == self.scope_brace_stack:
             state.remove_observer(self)
@@ -642,41 +643,86 @@ class MethodCodeObserver(CodeObserver):
     of an interface class.
     """
     def __init__(self, interface_observer: 'InterfaceCodeObserver') -> None:
-        super().__init__(
-            self.__call__,
-            events=CodeEvent.LINE_END | CodeEvent.STATEMENT_END
-        )
+        super().__init__(self.__call__, events=CodeEvent.LINE_END)
         self.interface_observer = interface_observer
-        self.ignored_method_prefix = None
+        self.ignored_method_prefix = None  # Set once annotation is found.
+        self.declaration = None  # Appended to while parsing.
+        self.annotation_line_no = None
 
     def __call__(self, event: 'CodeEvent', state: 'CodeState') -> None:
+        """Handle code events produced while parsing an interface"""
+        interface_brace_stack = self.interface_observer.scope_brace_stack
+
         # Handle method annotation.
         if event == CodeEvent.LINE_END and \
-                state.brace_stack == self.interface_observer.scope_brace_stack:
+                state.brace_stack == interface_brace_stack:
+            if self.declaration is not None:
+                raise ParsingError(
+                    state,
+                    f'Annotation found while still parsing previous Method'
+                    f'annotation on line {self.annotation_line_no}.'
+                )
             annotation = parse_annotations(state.line)
             if not annotation or annotation.key != 'Method':
                 return
-            self.method_prefix = state.statement
+            self.ignored_method_prefix = state.statement
+            self.annotation_line_no = state.line_no
+            self.events |= (
+                    CodeEvent.BRACKET_START |
+                    CodeEvent.BRACKET_END |
+                    CodeEvent.STATEMENT_END
+            )
+            self.declaration = ''
+
+        # Handle text from within method parameter list.
+        # This would normally be ignored as it is in an inner scope, but
+        # it must be parsed to obtain the function parameters.
+        elif all((
+                event == CodeEvent.BRACKET_START,
+                state.brace_stack == interface_brace_stack + ['('],
+        )):
+            assert state.scope_prefix.startswith(self.ignored_method_prefix)
+            appended_text = state.scope_prefix[self.ignored_len:]
+            self.declaration += appended_text
+            self.ignored_method_prefix += appended_text
+        elif all((
+                event == CodeEvent.BRACKET_END,
+                state.brace_stack == interface_brace_stack + ['('],
+        )):
+            self.declaration += state.statement
 
         # Handle end of function declaration with or without body.
         elif all((
                 event == CodeEvent.STATEMENT_END,
-                self.method_prefix is not None,
-                state.brace_stack == self.interface_observer.scope_brace_stack
+                self.ignored_method_prefix is not None,
+                state.brace_stack == interface_brace_stack
         )) or all((
                 event == CodeEvent.BRACKET_START,
-                state.brace_stack[-1] ==
-                self.interface_observer.scope_brace_stack + ['{'],
+                state.brace_stack == interface_brace_stack + ['{'],
         )):
-            assert state.statement.startswith(self.method_prefix)
-            statement = state.statement[len(self.method_prefix):]
+            signature_statement = state.statement if \
+                state.brace_stack == interface_brace_stack else \
+                state.scope_prefix
+            assert signature_statement.startswith(self.ignored_method_prefix)
+            self.declaration += signature_statement[self.ignored_len:]
+            self.declaration = self.declaration.rstrip('{').strip()
             try:
-                signature = parse_methods(statement)
+                signatures = parse_methods(self.declaration)
+                interface = self.interface_observer.interface
+                for signature in signatures:
+                    interface.methods[signature.name] = signature
             except InvalidMethodDeclaration as declaration_err:
                 raise ParsingError(
                     state, str(declaration_err)
                 ) from declaration_err
-            self.method_prefix = None
+            self.ignored_method_prefix = None  # Reset.
+            self.declaration = None  # Reset
+            self.annotation_line_no = None  # Reset
+            self.events = CodeEvent.LINE_END  # Reset
+
+    @property
+    def ignored_len(self) -> int:
+        return len(self.ignored_method_prefix)
 
 
 #######################################################################
