@@ -856,7 +856,7 @@ def parse_methods(text: str) -> ty.List['Method']:
     def create_signature_name(base: str, params: ty.List[Parameter]) -> str:
         return f'{base}({",".join(sig_param.type for sig_param in params)})'
 
-    signatures = []
+    signatures: ty.List[Method] = []
     used_params: ty.List[Parameter] = []
     for param in parsed_params:
         if param.optional:
