@@ -418,16 +418,26 @@ class TestMethodParse:
             Method('foo()', return_type='std::string', parameters=[]),
         ]
 
+    def test_unary_const_method(self):
+        methods = parse_methods('virtual int foo(int x) const')
+        assert methods == [
+            Method(
+                'foo(int)const',
+                return_type='int',
+                parameters=[Parameter('x', type='int')],
+            ),
+        ]
+
     def test_pure_virtual_method(self):
         methods = parse_methods('virtual int f() const = 0')
         assert methods == [
-            Method('f()', return_type='int', parameters=[]),
+            Method('f()const', return_type='int', parameters=[]),
         ]
 
     def test_pure_virtual_method_with_tail_return(self):
         methods = parse_methods('virtual auto f() const -> int = 0')
         assert methods == [
-            Method('f()', return_type='int', parameters=[]),
+            Method('f()const', return_type='int', parameters=[]),
         ]
 
     def test_function_with_attribute(self):
