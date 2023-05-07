@@ -772,7 +772,8 @@ METHOD_SIGNATURE_PATTERN = re.compile(
     r'(?P<cv>const)?\s*'
     r'(?P<ref>override|final)?\s*'
     r'(?:[\w\[\]()]+\s+)*'  # modifiers and attributes
-    r'(?P<tail_return>->\s*[\w:]+)?$'
+    r'(?:->\s*(?P<tail_return>[\w:]+))?\s*'
+    r'(?P<pure>=\s*0)?$'
 )
 COLLAPSED_PARAM_PATTERNS = [
     (re.compile(r'\{.*}'), '{}'),
