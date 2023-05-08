@@ -819,12 +819,13 @@ METHOD_SIGNATURE_PATTERN = re.compile(
     r'(?P<ref>override|final)?\s*'
     r'(?:[\w\[\]()]+\s+)*'  # modifiers and attributes
     r'(?:->\s*(?P<tail_return>[\w:]+))?\s*'
-    r'(?P<pure>=\s*0)?$'
+    r'(?P<pure>=\s*0)?$',
+    flags=re.DOTALL,
 )
 COLLAPSED_PARAM_PATTERNS = [
-    (re.compile(r'\{.*}'), '{}'),
-    (re.compile(r'\(.*\)'), '()'),
-    (re.compile(r'<.*>'), '<>'),
+    (re.compile(r'\{.*}', flags=re.DOTALL), '{}'),
+    (re.compile(r'\(.*\)', flags=re.DOTALL), '()'),
+    (re.compile(r'<.*>', flags=re.DOTALL), '<>'),
 ]
 PARAM_PATTERN = re.compile(
     r'(?P<type>(?:const\s+)?[\w:]+'  # Leading const qualifier and type name
@@ -832,7 +833,8 @@ PARAM_PATTERN = re.compile(
     r'(?:(?:const)?(?:\*|&|\s)\s*?)*)\s*'  # Trailing const and ref markers.
     r'(?<=[\s*&])(?P<name>\w+)\s*'
     r'(?P<array>(?:\[.*?])*)\s*'
-    r'(?:=\s*(?P<default>[\w:()\[\]{}"\s]+?))?\s*$'
+    r'(?:=\s*(?P<default>[\w:()\[\]{}"\s]+?))?\s*$',
+    flags=re.DOTALL
 )
 PARAM_TYPE_REPLACEMENTS = [
     (re.compile(r'([\w:]+)\s+([*&])'), r'\g<1>\g<2>'),
