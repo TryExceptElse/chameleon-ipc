@@ -846,6 +846,13 @@ PARAM_TYPE_REPLACEMENTS = [
 
 
 class ParsedParam(ty.NamedTuple):
+    """
+    Tuple storing parameter info parsed from function signature.
+
+    This type is used to convey the results of the parse_method()
+    function, after which the information is moved to Parameter objects
+    which will be stored in the produced Profile.
+    """
     name: str
     type: str
     optional: bool
