@@ -579,7 +579,7 @@ class TestParamParse:
         assert parsed_param == (name, param_type, optional)
 
     @pytest.mark.parametrize(
-        'text', 
+        'text',
         [
             'const int* foo = nullptr',
             'const int *foo = nullptr',
