@@ -901,24 +901,23 @@ def parse_methods(text: str) -> ty.List['Method']:
         for param_text in split_params(params_text)
     ]
 
-    def create_signature_name(
-            base: str, params: ty.List[Parameter], cv: str
-    ) -> str:
-        return f'{base}({",".join(sig_param.type for sig_param in params)})' + \
-               (cv if cv else '')
+    def create_signature_name(params: ty.List[Parameter]) -> str:
+        signature_parameters = ','.join(sig_param.type for sig_param in params)
+        cv = match['cv'] if match['cv'] else ''
+        return f'{name}({signature_parameters}){cv}'
 
     signatures: ty.List[Method] = []
     used_params: ty.List[Parameter] = []
     for param in parsed_params:
         if param.optional:
             signatures.append(Method(
-                create_signature_name(name, used_params, match['cv']),
+                create_signature_name(used_params),
                 return_type=return_type,
                 parameters=used_params.copy(),
             ))
         used_params.append(Parameter(param.name, param.type))
     signatures.append(Method(
-        create_signature_name(name, used_params, match['cv']),
+        create_signature_name(used_params),
         return_type=return_type,
         parameters=used_params.copy())
     )
