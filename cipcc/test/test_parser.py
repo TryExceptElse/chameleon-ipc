@@ -206,11 +206,11 @@ class TestParser:
         profile = Parser().parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
-        accessor = interface.methods['DoTheThing(std::int32_t)const']
+        accessor = interface.methods['Encode(int)const']
         assert accessor == Method(
-            name='DoTheThing(std::int32_t)const',
-            return_type='void',
-            parameters=[Parameter(name='foo', type='std::int32_t')],
+            name='Encode(int)const',
+            return_type='int',
+            parameters=[Parameter(name='foo', type='int')],
         )
 
     def test_multiline_method(self):
@@ -218,11 +218,14 @@ class TestParser:
         profile = Parser().parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
-        accessor = interface.methods['DoTheThing(int,int)const']
+        accessor = interface.methods['Encode(int,int)const']
         assert accessor == Method(
-            name='DoTheThing(int,int)const',
+            name='Encode(int,int)const',
             return_type='int',
-            parameters=[Parameter(name='foo', type='std::int32_t')],
+            parameters=[
+                Parameter(name='a', type='int'),
+                Parameter(name='b', type='int'),
+            ],
         )
 
     def test_optional_param_method(self):
@@ -236,7 +239,7 @@ class TestParser:
             return_type='int',
             parameters=[Parameter(name='foo', type='int')],
         )
-        accessor_b = interface.methods['DoTheThing(int)']
+        accessor_b = interface.methods['DoTheThing(int,int)']
         assert accessor_b == Method(
             name='DoTheThing(int,int)',
             return_type='int',
@@ -252,12 +255,12 @@ class TestParser:
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         assert interface.methods['Encode(std::string)const'] == Method(
-            name='DoTheThing(std::string)const',
+            name='Encode(std::string)const',
             return_type='int',
             parameters=[Parameter(name='x', type='std::string')],
         )
         assert interface.methods['Encode(std::int32_t)const'] == Method(
-            name='DoTheThing(std::string)const',
+            name='Encode(std::int32_t)const',
             return_type='int',
             parameters=[Parameter(name='x', type='std::int32_t')],
         )
