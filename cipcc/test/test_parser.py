@@ -31,13 +31,17 @@ from ..parser import (
     NonExtendableMethodError,
     InvalidParamDeclaration,
     ReferenceParamError,
+    InvalidParamTypeError,
+    InvalidReturnTypeError,
     parse_annotations,
     parse_fields,
     parse_methods,
     split_params,
     parse_param,
 )
-from ..interface import Serializable, SerializableStruct, Method, Parameter
+from ..interface import (
+    Profile, Serializable, SerializableStruct, Method, Parameter
+)
 from .util import get_resource
 
 
@@ -171,6 +175,25 @@ class TestParser:
         assert name_field.name == 'name'
         assert name_field.type_name == 'std::string'
 
+    def test_serializable_struct_in_struct(self):
+        header = get_resource('serializable/nested_struct.h')
+        profile = Parser().parse([header])
+        a = profile.serializable_types['ns::A']
+        assert a.type == Serializable.Type.STRUCT
+        assert isinstance(a, SerializableStruct)
+        id_field = a.fields['id']
+        assert id_field.name == 'id'
+        assert id_field.type_name == 'std::size_t'
+        name_field = a.fields['name']
+        assert name_field.name == 'name'
+        assert name_field.type_name == 'std::string'
+        b = profile.serializable_types['ns::B']
+        assert b.type == Serializable.Type.STRUCT
+        assert isinstance(b, SerializableStruct)
+        a_field = b.fields['a']
+        assert a_field.name == 'a'
+        assert a_field.type_name == 'ns::A'
+
     def test_accessor_method(self):
         header = get_resource('method/accessor.h')
         profile = Parser().parse([header])
@@ -296,6 +319,46 @@ class TestParser:
             name='DoTheThing(int)',
             return_type='int',
             parameters=[Parameter(name='x', type='int')],
+        )
+
+    def test_namespaced_serializable_type(self):
+        header = get_resource('method/namespaced_type.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['ns1::ns2::Interface']
+        assert interface.name == 'ns1::ns2::Interface'
+        init = interface.methods['Init(ns1::ns2::Interface::Conf)']
+        assert init == Method(
+            name='Init(ns1::ns2::Interface::Conf)',
+            return_type='int',
+            parameters=[
+                Parameter(name='conf', type='ns1::ns2::Interface::Conf')
+            ],
+        )
+        accessor = interface.methods['conf()const']
+        assert accessor == Method(
+            name='conf()const',
+            return_type='ns1::ns2::Interface::Conf',
+            parameters=[],
+        )
+
+    def test_nested_serializable_type(self):
+        header = get_resource('method/nested_type.h')
+        profile = Parser().parse([header])
+        interface = profile.interfaces['ns1::ns2::Interface']
+        assert interface.name == 'ns1::ns2::Interface'
+        init = interface.methods['Init(ns1::ns2::Interface::Conf)']
+        assert init == Method(
+            name='Init(ns1::Conf)',
+            return_type='int',
+            parameters=[
+                Parameter(name='conf', type='ns1::Conf')
+            ],
+        )
+        accessor = interface.methods['conf()const']
+        assert accessor == Method(
+            name='conf()const',
+            return_type='ns1::Conf',
+            parameters=[],
         )
 
 
@@ -507,7 +570,11 @@ class TestMethodParse:
         ]
 
     def test_function_with_struct_default(self):
-        methods = parse_methods('virtual int foo(Conf conf = {})')
+        profile = Profile()
+        profile.serializable_types['Conf'] = SerializableStruct(
+            name='Conf', type='struct'
+        )
+        methods = parse_methods('virtual int foo(Conf conf = {})', profile)
         assert methods == [
             Method('foo()', return_type='int', parameters=[]),
             Method(
@@ -536,15 +603,18 @@ class TestMethodParse:
         ]
 
     @pytest.mark.parametrize(
-        'signature',
+        'signature, exception_type',
         [
-            'virtual int f(int x[3] = nullptr)',
-            'virtual int f(const int* x = nullptr)',
-            'virtual int f(const int& x = nullptr)',
+            ('virtual int f(int x[3] = nullptr)', ReferenceParamError),
+            ('virtual int f(const int* x = nullptr)', ReferenceParamError),
+            ('virtual int f(const int& x = nullptr)', ReferenceParamError),
+            ('virtual int f(long c)', InvalidParamTypeError),
+            ('virtual int f(std::array<int32_t, 4> x)', InvalidParamTypeError),
+            ('virtual long f(int x)', InvalidReturnTypeError),
         ]
     )
-    def test_functions_with_reference_params(self, signature):
-        with pytest.raises(ReferenceParamError):
+    def test_invalid_methods(self, signature, exception_type):
+        with pytest.raises(exception_type):
             parse_methods(signature)
 
 
@@ -576,7 +646,7 @@ class TestParamParse:
                 'std::vector<std::vector<int>>', 'x', True
             ),
             ('int x=10', 'int', 'x', True),
-            ('Conf conf = {}', 'Conf', 'conf', True),
+            ('std::string s = {}', 'std::string', 's', True),
             ('int foo = default()', 'int', 'foo', True),
             ('int foo = default ()', 'int', 'foo', True),
             ('[[maybe_unused]] const int x', 'const int', 'x', False),
@@ -595,8 +665,8 @@ class TestParamParse:
             'const int* const* x = nullptr',
             'int*** x',
             'const int* foo',
-            'const Conf& conf',
-            'const Conf &conf',
+            'std::string& conf',
+            'std::string &conf',
             'const int arr[]',
             'const int arr []',
             'const int arr[] = {}',
@@ -623,4 +693,20 @@ class TestParamParse:
         is not much reason to attempt to parse these.
         """
         with pytest.raises(InvalidParamDeclaration):
+            parse_param(text)
+
+    @pytest.mark.parametrize(
+        'text',
+        [
+            'long x',
+            'const short x = 0',
+            'char c',
+            'std::array<std::int32_t, 4> arr',
+        ]
+    )
+    def test_unsupported_parameter_types(self, text):
+        """
+        Tests that parameters with unsupported types are detected.
+        """
+        with pytest.raises(InvalidParamTypeError):
             parse_param(text)
