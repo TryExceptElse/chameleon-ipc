@@ -259,7 +259,7 @@ class TestParser:
         )
 
     def test_overloaded_method(self):
-        header = get_resource('method/overloaded_method.h')
+        header = get_resource('method/overloaded.h')
         profile = Parser().parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
