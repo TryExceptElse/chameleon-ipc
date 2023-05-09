@@ -37,7 +37,7 @@ from ..parser import (
     split_params,
     parse_param,
 )
-from ..interface import Serializable, Method, Parameter
+from ..interface import Serializable, SerializableStruct, Method, Parameter
 from .util import get_resource
 
 
@@ -61,6 +61,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         id_field = foo.fields['id']
         assert id_field.name == 'id'
         assert id_field.type_name == 'std::size_t'
@@ -73,6 +74,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         id_field = foo.fields['id']
         assert id_field.name == 'id'
         assert id_field.type_name == 'std::size_t'
@@ -85,6 +87,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         for field_name in 'a', 'b', 'c':
             id_field = foo.fields[field_name]
             assert id_field.name == field_name
@@ -95,6 +98,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         id_field = foo.fields['id']
         assert id_field.name == 'id'
         assert id_field.type_name == 'std::size_t'
@@ -107,6 +111,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         id_field = foo.fields['id']
         assert id_field.name == 'id'
         assert id_field.type_name == 'std::size_t'
@@ -119,6 +124,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         id_field = foo.fields['id']
         assert id_field.name == 'id'
         assert id_field.type_name == 'std::size_t'
@@ -131,6 +137,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         id_field = foo.fields['id']
         assert id_field.name == 'id'
         assert id_field.type_name == 'std::size_t'
@@ -142,6 +149,7 @@ class TestParser:
         header = get_resource('serializable/namespaced_struct.h')
         profile = Parser().parse([header])
         foo = profile.serializable_types['bar::baz::Foo']
+        assert isinstance(foo, SerializableStruct)
         assert foo.type == Serializable.Type.STRUCT
         id_field = foo.fields['id']
         assert id_field.name == 'id'
@@ -155,6 +163,7 @@ class TestParser:
         profile = Parser().parse([header])
         foo = profile.serializable_types['bar::Interface::Foo']
         assert foo.type == Serializable.Type.STRUCT
+        assert isinstance(foo, SerializableStruct)
         id_field = foo.fields['id']
         assert id_field.name == 'id'
         assert id_field.type_name == 'std::size_t'
