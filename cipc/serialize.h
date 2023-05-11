@@ -362,7 +362,9 @@ std::size_t deserialize(
 template<template<typename...> class T>
 using enable_if_map_like = typename std::enable_if<
     is_same_template<T, std::map>::value ||
-        is_same_template<T, std::unordered_map>::value,
+        is_same_template<T, std::multimap>::value ||
+        is_same_template<T, std::unordered_map>::value ||
+        is_same_template<T, std::unordered_multimap>::value,
     bool>;
 
 template<

@@ -22,7 +22,9 @@
  */
 
 #include <limits>
+#include <map>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -37,6 +39,10 @@ using i32 = std::int32_t;
 using std::string;
 template<typename K, typename V>
 using umap = std::unordered_map<K, V>;
+template<typename K, typename V>
+using mmap = std::multimap<K, V>;
+template<typename K, typename V>
+using ummap = std::unordered_multimap<K, V>;
 
 using namespace std::string_literals;  // NOLINT
 
@@ -159,6 +165,16 @@ ROUND_TRIP_TEST(IntUMap, Arg(umap<i32, i32>{{1, 2}, {3, 4}}))
 ROUND_TRIP_TEST(EmptyUMap, Arg(umap<i32, i32>{}))
 ROUND_TRIP_TEST(StringUMap, Arg(umap<string, i32>{{"a", 5}, {"b", 10}}))
 ROUND_TRIP_TEST(FloatUMap, Arg(umap<i32, float>{{1, 1.}, {2, 2.}}))
+
+ROUND_TRIP_TEST(IntMMap, Arg(mmap<i32, i32>{{1, 2}, {3, 4}}))
+ROUND_TRIP_TEST(EmptyMMap, Arg(mmap<i32, i32>{}))
+ROUND_TRIP_TEST(StringMMap, Arg(mmap<string, i32>{{"a", 5}, {"b", 10}}))
+ROUND_TRIP_TEST(FloatMMap, Arg(mmap<i32, float>{{1, 1.}, {2, 2.}}))
+
+ROUND_TRIP_TEST(IntUMMap, Arg(ummap<i32, i32>{{1, 2}, {3, 4}}))
+ROUND_TRIP_TEST(EmptyUMMap, Arg(ummap<i32, i32>{}))
+ROUND_TRIP_TEST(StringUMMap, Arg(ummap<string, i32>{{"a", 5}, {"b", 10}}))
+ROUND_TRIP_TEST(FloatUMMap, Arg(ummap<i32, float>{{1, 1.}, {2, 2.}}))
 
 }  // namespace
 
