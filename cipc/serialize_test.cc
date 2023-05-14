@@ -24,6 +24,7 @@
 #include <limits>
 #include <list>
 #include <map>
+#include <optional>
 #include <utility>
 #include <unordered_map>
 #include <vector>
@@ -176,6 +177,14 @@ ROUND_TRIP_TEST(IntUMMap, Arg(ummap<i32, i32>{{1, 2}, {3, 4}}))
 ROUND_TRIP_TEST(EmptyUMMap, Arg(ummap<i32, i32>{}))
 ROUND_TRIP_TEST(StringUMMap, Arg(ummap<string, i32>{{"a", 5}, {"b", 10}}))
 ROUND_TRIP_TEST(FloatUMMap, Arg(ummap<i32, float>{{1, 1.}, {2, 2.}}))
+
+ROUND_TRIP_TEST(ShortIntOpt, std::optional<int32_t>(1))
+ROUND_TRIP_TEST(EmptyIntOpt, std::optional<int32_t>())
+ROUND_TRIP_TEST(FloatOpt, std::optional(1.))
+ROUND_TRIP_TEST(StringOpt, std::optional("One"s))
+ROUND_TRIP_TEST(EmptyStringOpt, std::optional<std::string>())
+ROUND_TRIP_TEST(BoolOpt, std::optional(true))
+ROUND_TRIP_TEST(EmptyBoolOpt, std::optional<bool>())
 
 }  // namespace
 

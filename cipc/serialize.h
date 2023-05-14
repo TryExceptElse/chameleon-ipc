@@ -44,6 +44,10 @@
 #include <unordered_map>
 #include <vector>
 
+#if __cplusplus >= 201703L
+#  include <optional>
+#endif  // __cplusplus >= 201703L
+
 #include "cipc/platform.h"
 
 #if !defined(CIPC_USE_GNU_BUILTINS)
@@ -248,7 +252,7 @@ template<
 std::size_t serialized_size(const T& x) {
   return sizeof(x);
 }
- 
+
 template<
     typename T,
     typename enable_if_float_serializable<T>::type = true>
@@ -462,6 +466,54 @@ std::size_t deserialize(
 
 // Option
 
+#if __cplusplus >= 201703L
+
+template<typename T>
+std::size_t serialized_size(const std::optional<T>& x) {
+  std::size_t size = 1;
+  if (x.has_value()) {
+    size += serialized_size(*x);
+  }
+  return size;
+}
+
+template<typename T>
+std::size_t serialize(const std::optional<T>& x, void* buf, std::size_t buf_size) {
+  auto* cursor = reinterpret_cast<uint8_t*>(buf);
+  auto size = serialize(
+      static_cast<bool>(x.has_value()), cursor, buf_size);
+  cursor += size;
+  buf_size -= size;
+  if (x.has_value()) {
+    size += serialize(*x, cursor, buf_size);
+    if (size <= sizeof(char)) {
+      return 0;
+    }
+  }
+  return size;
+}
+
+template<typename T>
+std::size_t deserialize(
+    std::optional<T>* x, const void* buf, std::size_t buf_size) {
+  auto* cursor = reinterpret_cast<const uint8_t*>(buf);
+  bool has_value;
+  std::size_t size = deserialize(&has_value, cursor, buf_size);
+  cursor += size;
+  buf_size -= size;
+  if (has_value) {
+    x->emplace();
+    size += deserialize(&**x, cursor, buf_size);
+    if (size <= sizeof(char)) {
+      return 0;
+    }
+  }
+  return size;
+}
+
+#endif  // __cplusplus >= 201703L
+
 }  // namespace cipc
 
 #endif  // CIPC_SERIALIZE_H_
+
