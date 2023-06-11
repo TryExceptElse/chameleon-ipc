@@ -39,9 +39,11 @@
 #include <deque>
 #include <list>
 #include <map>
+#include <set>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #if __cplusplus >= 201703L
@@ -274,19 +276,59 @@ std::size_t deserialize(std::string* x, const void* buf, std::size_t buf_size);
 
 // List-like types
 
-using CollectionSize = std::uint32_t;
-
 template<template<typename...> class T, template<typename...> class U>
 struct is_same_template : std::false_type {};
 
 template<template<typename...> class T>
 struct is_same_template<T, T> : std::true_type {};
 
+namespace serialize_internal {
+
+template<typename T>
+void reserve(T* collection, std::size_t n) {
+  (void)collection;
+  (void)n;
+}
+
+template<typename T>
+void reserve(std::vector<T>* vec, std::size_t n) {
+  vec->reserve(n);
+}
+
+template<typename Collection, typename Item>
+void add(Collection* collection, Item&& item) {
+  collection->push_back(std::forward<Item>(item));
+}
+
+template<template<typename...> class T>
+using enable_if_set_like = typename std::enable_if<
+    is_same_template<T, std::set>::value ||
+        is_same_template<T, std::unordered_set>::value ||
+        is_same_template<T, std::multiset>::value,
+    bool>;
+
+template<
+    template<typename...> class Collection,
+    typename... TParam,
+    typename Item,
+    typename enable_if_set_like<Collection>::type = true>
+void add(Collection<TParam...>* collection, Item&& item) {
+  collection->insert(std::forward<Item>(item));
+}
+
+
+}  // namespace serialize_internal
+
+using CollectionSize = std::uint32_t;
+
 template<template<typename...> class T>
 using enable_if_list_like = typename std::enable_if<
     is_same_template<T, std::deque>::value ||
         is_same_template<T, std::list>::value ||
-        is_same_template<T, std::vector>::value,
+        is_same_template<T, std::vector>::value ||
+        is_same_template<T, std::set>::value ||
+        is_same_template<T, std::unordered_set>::value ||
+        is_same_template<T, std::multiset>::value,
     bool>;
 
 template<
@@ -347,13 +389,15 @@ std::size_t deserialize(
   }
   cursor += n_read_bytes;
   buf_size -= n_read_bytes;
+  serialize_internal::reserve(&x, n_items);
   while (n_items > 0) {
     Item item;
     n_read_bytes = deserialize(&item, cursor, buf_size);
     if (n_read_bytes == 0) {
       return 0;
     }
-    x->push_back(std::move(item));
+    serialize_internal::add(x, item);
+    // x->push_back(std::move(item));
     cursor += n_read_bytes;
     buf_size -= n_read_bytes;
     --n_items;

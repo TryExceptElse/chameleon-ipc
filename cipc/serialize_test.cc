@@ -70,12 +70,36 @@ template<typename T>
 auto List() -> std::list<T> { return {}; }
 
 template<typename... Args>
-auto Deque(Args&&... args) -> decltype(std::list{args...}) {
-  return std::list{std::forward<Args>(args)...};
+auto Deque(Args&&... args) -> decltype(std::deque{args...}) {
+  return std::deque{std::forward<Args>(args)...};
 }
 
 template<typename T>
-auto Deque() -> std::list<T> { return {}; }
+auto Deque() -> std::deque<T> { return {}; }
+
+template<typename... Args>
+auto Set(Args&&... args) -> decltype(std::set{args...}) {
+  return std::set{std::forward<Args>(args)...};
+}
+
+template<typename T>
+auto Set() -> std::set<T> { return {}; }
+
+template<typename... Args>
+auto USet(Args&&... args) -> decltype(std::unordered_set{args...}) {
+  return std::unordered_set{std::forward<Args>(args)...};
+}
+
+template<typename T>
+auto USet() -> std::unordered_set<T> { return {}; }
+
+template<typename... Args>
+auto MSet(Args&&... args) -> decltype(std::multiset{args...}) {
+  return std::multiset{std::forward<Args>(args)...};
+}
+
+template<typename T>
+auto MSet() -> std::multiset<T> { return {}; }
 
 #define Arg(...) (__VA_ARGS__)
 
@@ -157,6 +181,33 @@ ROUND_TRIP_TEST(StringDeque, Deque("One"s, "Two"s, "Three"s))
 ROUND_TRIP_TEST(EmptyStringDeque, Deque<std::string>())
 ROUND_TRIP_TEST(BoolDeque, Deque(true, false, true))
 ROUND_TRIP_TEST(EmptyBoolDeque, Deque<bool>())
+
+ROUND_TRIP_TEST(ShortIntSet, Set<int32_t>(1, 2))
+ROUND_TRIP_TEST(LongerIntSet, Set<int32_t>(1, 2, 3, 4, 5, 6, 7, 8))
+ROUND_TRIP_TEST(EmptyIntSet, Set<int32_t>())
+ROUND_TRIP_TEST(FloatSet, Set(1., 2., 3., -1., -2., -3.))
+ROUND_TRIP_TEST(StringSet, Set("One"s, "Two"s, "Three"s))
+ROUND_TRIP_TEST(EmptyStringSet, Set<std::string>())
+ROUND_TRIP_TEST(BoolSet, Set(true, false, true))
+ROUND_TRIP_TEST(EmptyBoolSet, Set<bool>())
+
+ROUND_TRIP_TEST(ShortIntUSet, USet<int32_t>(1, 2))
+ROUND_TRIP_TEST(LongerIntUSet, USet<int32_t>(1, 2, 3, 4, 5, 6, 7, 8))
+ROUND_TRIP_TEST(EmptyIntUSet, USet<int32_t>())
+ROUND_TRIP_TEST(FloatUSet, USet(1., 2., 3., -1., -2., -3.))
+ROUND_TRIP_TEST(StringUSet, USet("One"s, "Two"s, "Three"s))
+ROUND_TRIP_TEST(EmptyStringUSet, USet<std::string>())
+ROUND_TRIP_TEST(BoolUSet, USet(true, false, true))
+ROUND_TRIP_TEST(EmptyBoolUSet, USet<bool>())
+
+ROUND_TRIP_TEST(ShortIntMSet, MSet<int32_t>(1, 2))
+ROUND_TRIP_TEST(LongerIntMSet, MSet<int32_t>(1, 2, 3, 4, 5, 6, 7, 8))
+ROUND_TRIP_TEST(EmptyIntMSet, MSet<int32_t>())
+ROUND_TRIP_TEST(FloatMSet, MSet(1., 2., 3., -1., -2., -3.))
+ROUND_TRIP_TEST(StringMSet, MSet("One"s, "Two"s, "Three"s))
+ROUND_TRIP_TEST(EmptyStringMSet, MSet<std::string>())
+ROUND_TRIP_TEST(BoolMSet, MSet(true, false, true))
+ROUND_TRIP_TEST(EmptyBoolMSet, MSet<bool>())
 
 ROUND_TRIP_TEST(IntMap, Arg(std::map<i32, i32>{{1, 2}, {3, 4}}))
 ROUND_TRIP_TEST(EmptyMap, Arg(std::map<i32, i32>{}))
