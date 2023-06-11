@@ -345,10 +345,11 @@ std::size_t serialized_size(const Collection<Item>& x) {
 
 template<
     template<typename...> class Collection,
+    typename... TParam,
     typename Item,
     typename enable_if_list_like<Collection>::type = true>
 std::size_t serialize(
-    const Collection<Item>& x, void* buf, std::size_t buf_size) {
+    const Collection<Item, TParam...>& x, void* buf, std::size_t buf_size) {
   const auto size = serialized_size(x);
   auto* cursor = reinterpret_cast<uint8_t*>(buf);
   const auto* start = cursor;
@@ -375,10 +376,11 @@ std::size_t serialize(
 
 template<
     template<typename...> class Collection,
+    typename... TParam,
     typename Item,
     typename enable_if_list_like<Collection>::type = true>
 std::size_t deserialize(
-    Collection<Item>* x, const void* buf, std::size_t buf_size) {
+    Collection<Item, TParam...>* x, const void* buf, std::size_t buf_size) {
   x->clear();
   auto* cursor = reinterpret_cast<const uint8_t*>(buf);
   const auto* start = cursor;
@@ -433,9 +435,10 @@ template<
     template<typename...> class Map,
     typename Key,
     typename Value,
+    typename... TParam,
     typename enable_if_map_like<Map>::type = true>
 std::size_t serialize(
-    const Map<Key, Value>& x, void* buf, std::size_t buf_size) {
+    const Map<Key, Value, TParam...>& x, void* buf, std::size_t buf_size) {
   const auto size = serialized_size(x);
   auto* cursor = reinterpret_cast<uint8_t*>(buf);
   const auto* start = cursor;
@@ -474,9 +477,10 @@ template<
     template<typename...> class Map,
     typename Key,
     typename Value,
+    typename... TParam,
     typename enable_if_map_like<Map>::type = true>
 std::size_t deserialize(
-    Map<Key, Value>* x, const void* buf, std::size_t buf_size) {
+    Map<Key, Value, TParam...>* x, const void* buf, std::size_t buf_size) {
   x->clear();
   auto* cursor = reinterpret_cast<const uint8_t*>(buf);
   const auto* start = cursor;
