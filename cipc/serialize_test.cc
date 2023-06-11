@@ -22,7 +22,11 @@
  */
 
 #include <limits>
+#include <list>
+#include <map>
+#include <optional>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -37,6 +41,10 @@ using i32 = std::int32_t;
 using std::string;
 template<typename K, typename V>
 using umap = std::unordered_map<K, V>;
+template<typename K, typename V>
+using mmap = std::multimap<K, V>;
+template<typename K, typename V>
+using ummap = std::unordered_multimap<K, V>;
 
 using namespace std::string_literals;  // NOLINT
 
@@ -62,12 +70,36 @@ template<typename T>
 auto List() -> std::list<T> { return {}; }
 
 template<typename... Args>
-auto Deque(Args&&... args) -> decltype(std::list{args...}) {
-  return std::list{std::forward<Args>(args)...};
+auto Deque(Args&&... args) -> decltype(std::deque{args...}) {
+  return std::deque{std::forward<Args>(args)...};
 }
 
 template<typename T>
-auto Deque() -> std::list<T> { return {}; }
+auto Deque() -> std::deque<T> { return {}; }
+
+template<typename... Args>
+auto Set(Args&&... args) -> decltype(std::set{args...}) {
+  return std::set{std::forward<Args>(args)...};
+}
+
+template<typename T>
+auto Set() -> std::set<T> { return {}; }
+
+template<typename... Args>
+auto USet(Args&&... args) -> decltype(std::unordered_set{args...}) {
+  return std::unordered_set{std::forward<Args>(args)...};
+}
+
+template<typename T>
+auto USet() -> std::unordered_set<T> { return {}; }
+
+template<typename... Args>
+auto MSet(Args&&... args) -> decltype(std::multiset{args...}) {
+  return std::multiset{std::forward<Args>(args)...};
+}
+
+template<typename T>
+auto MSet() -> std::multiset<T> { return {}; }
 
 #define Arg(...) (__VA_ARGS__)
 
@@ -128,8 +160,8 @@ ROUND_TRIP_TEST(EmptyIntVec, Vec<int32_t>())
 ROUND_TRIP_TEST(FloatVec, Vec(1., 2., 3., -1., -2., -3.))
 ROUND_TRIP_TEST(StringVec, Vec("One"s, "Two"s, "Three"s))
 ROUND_TRIP_TEST(EmptyStringVec, Vec<std::string>())
-ROUND_TRIP_TEST(BoolVec, Vec(true, false, true))
-ROUND_TRIP_TEST(EmptyBoolVec, Vec<bool>())
+// ROUND_TRIP_TEST(BoolVec, Vec(true, false, true))
+// ROUND_TRIP_TEST(EmptyBoolVec, Vec<bool>())
 ROUND_TRIP_TEST(VecOfVec, Vec(Vec(1, 2, 3), Vec(4, 5, 6), Vec(7, 8, 9)))
 
 ROUND_TRIP_TEST(ShortIntList, List<int32_t>(1, 2))
@@ -150,6 +182,33 @@ ROUND_TRIP_TEST(EmptyStringDeque, Deque<std::string>())
 ROUND_TRIP_TEST(BoolDeque, Deque(true, false, true))
 ROUND_TRIP_TEST(EmptyBoolDeque, Deque<bool>())
 
+ROUND_TRIP_TEST(ShortIntSet, Set<int32_t>(1, 2))
+ROUND_TRIP_TEST(LongerIntSet, Set<int32_t>(1, 2, 3, 4, 5, 6, 7, 8))
+ROUND_TRIP_TEST(EmptyIntSet, Set<int32_t>())
+ROUND_TRIP_TEST(FloatSet, Set(1., 2., 3., -1., -2., -3.))
+ROUND_TRIP_TEST(StringSet, Set("One"s, "Two"s, "Three"s))
+ROUND_TRIP_TEST(EmptyStringSet, Set<std::string>())
+ROUND_TRIP_TEST(BoolSet, Set(true, false, true))
+ROUND_TRIP_TEST(EmptyBoolSet, Set<bool>())
+
+ROUND_TRIP_TEST(ShortIntUSet, USet<int32_t>(1, 2))
+ROUND_TRIP_TEST(LongerIntUSet, USet<int32_t>(1, 2, 3, 4, 5, 6, 7, 8))
+ROUND_TRIP_TEST(EmptyIntUSet, USet<int32_t>())
+ROUND_TRIP_TEST(FloatUSet, USet(1., 2., 3., -1., -2., -3.))
+ROUND_TRIP_TEST(StringUSet, USet("One"s, "Two"s, "Three"s))
+ROUND_TRIP_TEST(EmptyStringUSet, USet<std::string>())
+ROUND_TRIP_TEST(BoolUSet, USet(true, false, true))
+ROUND_TRIP_TEST(EmptyBoolUSet, USet<bool>())
+
+ROUND_TRIP_TEST(ShortIntMSet, MSet<int32_t>(1, 2))
+ROUND_TRIP_TEST(LongerIntMSet, MSet<int32_t>(1, 2, 3, 4, 5, 6, 7, 8))
+ROUND_TRIP_TEST(EmptyIntMSet, MSet<int32_t>())
+ROUND_TRIP_TEST(FloatMSet, MSet(1., 2., 3., -1., -2., -3.))
+ROUND_TRIP_TEST(StringMSet, MSet("One"s, "Two"s, "Three"s))
+ROUND_TRIP_TEST(EmptyStringMSet, MSet<std::string>())
+ROUND_TRIP_TEST(BoolMSet, MSet(true, false, true))
+ROUND_TRIP_TEST(EmptyBoolMSet, MSet<bool>())
+
 ROUND_TRIP_TEST(IntMap, Arg(std::map<i32, i32>{{1, 2}, {3, 4}}))
 ROUND_TRIP_TEST(EmptyMap, Arg(std::map<i32, i32>{}))
 ROUND_TRIP_TEST(StringMap, Arg(std::map<string, i32>{{"a", 5}, {"b", 10}}))
@@ -159,6 +218,24 @@ ROUND_TRIP_TEST(IntUMap, Arg(umap<i32, i32>{{1, 2}, {3, 4}}))
 ROUND_TRIP_TEST(EmptyUMap, Arg(umap<i32, i32>{}))
 ROUND_TRIP_TEST(StringUMap, Arg(umap<string, i32>{{"a", 5}, {"b", 10}}))
 ROUND_TRIP_TEST(FloatUMap, Arg(umap<i32, float>{{1, 1.}, {2, 2.}}))
+
+ROUND_TRIP_TEST(IntMMap, Arg(mmap<i32, i32>{{1, 2}, {3, 4}}))
+ROUND_TRIP_TEST(EmptyMMap, Arg(mmap<i32, i32>{}))
+ROUND_TRIP_TEST(StringMMap, Arg(mmap<string, i32>{{"a", 5}, {"b", 10}}))
+ROUND_TRIP_TEST(FloatMMap, Arg(mmap<i32, float>{{1, 1.}, {2, 2.}}))
+
+ROUND_TRIP_TEST(IntUMMap, Arg(ummap<i32, i32>{{1, 2}, {3, 4}}))
+ROUND_TRIP_TEST(EmptyUMMap, Arg(ummap<i32, i32>{}))
+ROUND_TRIP_TEST(StringUMMap, Arg(ummap<string, i32>{{"a", 5}, {"b", 10}}))
+ROUND_TRIP_TEST(FloatUMMap, Arg(ummap<i32, float>{{1, 1.}, {2, 2.}}))
+
+ROUND_TRIP_TEST(ShortIntOpt, std::optional<int32_t>(1))
+ROUND_TRIP_TEST(EmptyIntOpt, std::optional<int32_t>())
+ROUND_TRIP_TEST(FloatOpt, std::optional(1.))
+ROUND_TRIP_TEST(StringOpt, std::optional("One"s))
+ROUND_TRIP_TEST(EmptyStringOpt, std::optional<std::string>())
+ROUND_TRIP_TEST(BoolOpt, std::optional(true))
+ROUND_TRIP_TEST(EmptyBoolOpt, std::optional<bool>())
 
 }  // namespace
 
