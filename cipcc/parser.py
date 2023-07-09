@@ -23,11 +23,13 @@ Module containing interface parser.
 """
 import ast
 import contextlib
-import functools
-import re
 from dataclasses import dataclass
 import enum
+import functools
+import itertools
 from pathlib import Path
+import re
+import string
 import typing as ty
 
 from .interface import (
@@ -90,6 +92,26 @@ class ReferenceParamError(InvalidParamDeclaration):
     """
 
 
+class InvalidTypeError(ValueError):
+    """
+    Base type for invalid type errors.
+
+    See InvalidParamTypeError and InvalidReturnTypeError.
+    """
+
+
+class InvalidParamTypeError(InvalidParamDeclaration, InvalidTypeError):
+    """
+    Exception raised when a parameter type is unsupported.
+    """
+
+
+class InvalidReturnTypeError(InvalidMethodDeclaration, InvalidTypeError):
+    """
+    Exception raised when a return type is unsupported.
+    """
+
+
 class InvalidAnnotation(ValueError):
     """
     Exception raised when an annotation with invalid format
@@ -99,6 +121,54 @@ class InvalidAnnotation(ValueError):
 
 #######################################################################
 # Basic parsing types.
+
+_BUILTIN_TYPE_NAMES = [
+    'int',
+    'float',
+    'double',
+    'size_t',
+    'std::size_t',
+    'std::string',
+    'std::deque',
+    'std::list',
+    'std::vector',
+    'std::map',
+    'std::unordered_map',
+]
+
+# Add int(N)_t and variations to builtin types.
+BUILTIN_TYPES = {}
+for bit_size, sign_prefix, namespace in itertools.product(
+        ('8', '16', '32', '64'),
+        ('u', ''),
+        ('std::', ''),
+):
+    BUILTIN_TYPES[f'{namespace}{sign_prefix}int{bit_size}_t'] = Serializable(
+        f'std::{sign_prefix}int{bit_size}_t',
+        type=Serializable.Type.BUILTIN,
+    )
+for builtin_name in _BUILTIN_TYPE_NAMES:
+    BUILTIN_TYPES[builtin_name] = Serializable(
+        builtin_name, type=Serializable.Type.BUILTIN
+    )
+
+UNSUPPORTED_INTS = {
+    'char',
+    'long',
+    'short',
+}
+
+UNIMPLEMENTED_COLLECTIONS = {
+    'std::array',
+    'std::forward_list',
+    'std::stack',
+    'std::queue',
+    'std::priority_queue',
+    'std::flat_set',
+    'std::flat_map',
+    'std::flat_multiset',
+    'std::flat_multimap',
+}
 
 
 @dataclass
@@ -487,6 +557,10 @@ class SerializableCodeObserver(CodeObserver):
                 if self.field_observer:
                     state.remove_observer(self.field_observer)
 
+    @property
+    def inner_ns(self) -> str:
+        return '::'.join((self.namespace, self.name))
+
 
 class AutoFieldCodeObserver(CodeObserver):
     """
@@ -509,8 +583,10 @@ class AutoFieldCodeObserver(CodeObserver):
         if state.brace_stack != self.serializable_observer.scope_brace_stack:
             return
 
+        profile = self.serializable_observer.profile
+        inner_ns = self.serializable_observer.inner_ns
         try:
-            for field in parse_fields(state.statement):
+            for field in parse_fields(state.statement, profile, inner_ns):
                 fields = self.serializable_observer.serializable.fields
                 if field.name in fields:
                     raise ParsingError(
@@ -557,8 +633,10 @@ class ExplicitFieldCodeObserver(CodeObserver):
         elif event == CodeEvent.STATEMENT_END and self.field_prefix is not None:
             assert state.statement.startswith(self.field_prefix)
             statement = state.statement[len(self.field_prefix):]
+            profile = self.serializable_observer.profile
+            inner_ns = self.serializable_observer.inner_ns
             try:
-                for field in parse_fields(statement):
+                for field in parse_fields(statement, profile, inner_ns):
                     fields = self.serializable_observer.serializable.fields
                     if field.name in fields:
                         raise ParsingError(
@@ -655,7 +733,7 @@ class MethodCodeObserver(CodeObserver):
         # Handle method annotation.
         if event == CodeEvent.LINE_END and \
                 state.brace_stack == self.interface_brace_stack:
-            self.handle_line_end(state)
+            self._handle_line_end(state)
 
         # Handle text from within method parameter list.
         # This would normally be ignored as it is in an inner scope, but
@@ -664,12 +742,12 @@ class MethodCodeObserver(CodeObserver):
                 event == CodeEvent.BRACKET_START,
                 state.brace_stack == self.interface_brace_stack + ['('],
         )):
-            self.handle_round_bracket_opening(state)
+            self._handle_round_bracket_open(state)
         elif all((
                 event == CodeEvent.BRACKET_END,
                 state.brace_stack == self.interface_brace_stack + ['('],
         )):
-            self.handle_round_bracket_close(state)
+            self._handle_round_bracket_close(state)
 
         # Handle end of function declaration with or without body.
         elif all((
@@ -680,9 +758,9 @@ class MethodCodeObserver(CodeObserver):
                 event == CodeEvent.BRACKET_START,
                 state.brace_stack == self.interface_brace_stack + ['{'],
         )):
-            self.handle_signature_end(state)
+            self._handle_signature_end(state)
 
-    def handle_line_end(self, state: 'CodeState') -> None:
+    def _handle_line_end(self, state: 'CodeState') -> None:
         if self.declaration is not None:
             raise ParsingError(
                 state,
@@ -701,16 +779,16 @@ class MethodCodeObserver(CodeObserver):
         )
         self.declaration = ''
 
-    def handle_round_bracket_opening(self, state: 'CodeState') -> None:
+    def _handle_round_bracket_open(self, state: 'CodeState') -> None:
         assert state.scope_prefix.startswith(self.ignored_method_prefix)
         appended_text = state.scope_prefix[self.ignored_len:]
         self.declaration += appended_text
         self.ignored_method_prefix += appended_text
 
-    def handle_round_bracket_close(self, state: 'CodeState') -> None:
+    def _handle_round_bracket_close(self, state: 'CodeState') -> None:
         self.declaration += state.statement
 
-    def handle_signature_end(self, state: 'CodeState') -> None:
+    def _handle_signature_end(self, state: 'CodeState') -> None:
         signature_statement = state.statement if \
             state.brace_stack == self.interface_brace_stack else \
             state.scope_prefix
@@ -788,11 +866,15 @@ FIELD_TYPE_NAME_PATTERN = re.compile(r'^\s*(?P<type_name>[\w:<>]+)\s+')
 FIELD_NAME_PATTERN = re.compile(r'^\s*(?P<name>\w+)')
 
 
-def parse_fields(text: str) -> ty.List['Field']:
+def parse_fields(
+        text: str, profile: Profile = Profile(), ns: str = ''
+) -> ty.List['Field']:
     """
     Parse fields from field declaration statement.
 
     :param text: Declaration text (Ex: 'int foo = 1, baz = 2')
+    :param profile: Profile containing types usable in fields.
+    :param ns: Namespace containing fields being parsed.
     :return: List of fields parsed from declaration.
     """
     # Split preceding label (Ex: 'public:')
@@ -809,7 +891,7 @@ def parse_fields(text: str) -> ty.List['Field']:
             'Ensure a cipc-supported type is being used. '
             'See the Serializable types docs.'
         )
-    type_name = match['type_name']
+    type_name = resolve_type(match['type_name'], profile, ns).name
 
     # Parse fields.
     parts[0] = parts[0][len(match.group()):]
@@ -843,21 +925,15 @@ COLLAPSED_PARAM_PATTERNS = [
     (re.compile(r'<.*>', flags=re.DOTALL), '<>'),
 ]
 PARAM_PATTERN = re.compile(
-    r'(?P<type>(?:const\s+)?[\w:]+'  # Leading const qualifier and type name
-    r'(?:\s*<[\w:<>,\s]*>)?'  # Template args.
-    r'(?:(?:const)?(?:\*|&|\s)\s*?)*)\s*'  # Trailing const and ref markers.
+    r'(?P<type>(?P<cv>const\s+)?(?P<base_type>[\w:]+)'
+    r'(?P<tparam>\s*<[\w:<>,\s]*>)?'
+    r'(?P<type_suffix>(?:(?:const)?(?:\*|&|\s)+\s*)*))'
     r'(?<=[\s*&])(?P<name>\w+)\s*'
     r'(?P<array>(?:\[.*?])*)\s*'
     r'(?:=\s*(?P<default>[\w:()\[\]{}"\s]+?))?\s*$',
     flags=re.DOTALL
 )
-PARAM_TYPE_REPLACEMENTS = [
-    (re.compile(r'([\w:]+)\s+([*&])'), r'\g<1>\g<2>'),
-    (re.compile(r'([*&])([\w:]+)'), r'\g<1> <2>'),
-    (re.compile(r'\s*,\s*'), ','),
-    (re.compile(r'\s*<\s*'), '<'),
-    (re.compile(r'\s*>\s*'), '>'),
-]
+WHITESPACE = re.compile(r'\s+')
 
 
 class ParsedParam(ty.NamedTuple):
@@ -873,7 +949,9 @@ class ParsedParam(ty.NamedTuple):
     optional: bool
 
 
-def parse_methods(text: str) -> ty.List['Method']:
+def parse_methods(
+        text: str, profile: Profile = Profile(), ns: str = ''
+) -> ty.List['Method']:
     """
     Parses method signatures from a method declaration.
 
@@ -882,6 +960,8 @@ def parse_methods(text: str) -> ty.List['Method']:
     overloaded definitions.
 
     :param text: Method declaration to parse.
+    :param profile: Profile containing types usable in methods.
+    :param ns: Namespace containing method being parsed.
     :return: List[Method]
     """
     # Match overall signature structure before handling individual parts.
@@ -915,18 +995,25 @@ def parse_methods(text: str) -> ty.List['Method']:
     else:
         return_type = match['return']
 
+    # Resolve return type if valid.
+    try:
+        return_type = resolve_type(return_type, profile, ns).name
+    except InvalidTypeError as type_error:
+        if return_type != 'void':
+            raise InvalidReturnTypeError(str(type_error)) from type_error
+
     # Parse parameters
     params_text = match['params']
     for simplifying_pattern, replacement in COLLAPSED_PARAM_PATTERNS:
         params_text = simplifying_pattern.sub(params_text, replacement)
 
     parsed_params = [
-        parse_param(param_text.strip())
+        parse_param(param_text.strip(), profile, ns)
         for param_text in split_params(params_text)
     ]
 
     def create_signature_name(params: ty.List[Parameter]) -> str:
-        signature_parameters = ','.join(sig_param.type for sig_param in params)
+        signature_parameters = ','.join(str(param_.type) for param_ in params)
         cv = match['cv'] if match['cv'] else ''
         return f'{name}({signature_parameters}){cv}'
 
@@ -943,8 +1030,8 @@ def parse_methods(text: str) -> ty.List['Method']:
     signatures.append(Method(
         create_signature_name(used_params),
         return_type=return_type,
-        parameters=used_params.copy())
-    )
+        parameters=used_params.copy(),
+    ))
     return signatures
 
 
@@ -990,13 +1077,17 @@ def split_params(text: str) -> ty.List[str]:
     return params
 
 
-def parse_param(text: str) -> ParsedParam:
+def parse_param(
+        text: str, profile: Profile = Profile(), ns: str = ''
+) -> ParsedParam:
     """
     Parses a single parameter's text.
 
     See parse_method().
 
     :param text: Parameter text (Ex: 'int* foo[]')
+    :param profile: Profile containing types usable in parameters.
+    :param ns: Namespace containing method being parsed.
     :return: Parsed parameter information.
     """
     match = PARAM_PATTERN.search(text)
@@ -1005,24 +1096,127 @@ def parse_param(text: str) -> ParsedParam:
             f'Unparseable method parameter: {repr(text)}.'
         )
 
-    def normalize_type(type_text: str) -> str:
-        for pattern, substitute in PARAM_TYPE_REPLACEMENTS:
-            type_text = pattern.sub(substitute, type_text)
-        return type_text
+    *refs, cv = parse_type_modifiers(match['cv'], match['type_suffix'])
+    try:
+        param_type = resolve_type(match['base_type'].strip(), profile, ns).name
+    except InvalidTypeError as type_error:
+        raise InvalidParamTypeError(str(type_error)) from type_error
 
-    param_type = normalize_type(match['type'].strip() + match['array'])
-    if any(ref_char in param_type for ref_char in '*&[]'):
+    # Handle const-ref special case
+    if cv.is_const and refs == [TypeRef('&')]:
+        param_type += ' const&'
+    elif cv.is_const or cv.is_volatile:
         raise ReferenceParamError(
-            f'Parameter types which reference unowned data are unsupported in '
-            f'interface methods. This includes pointers (int*), C++ '
-            f'references (int&), and array parameters (int[]).'
+            f'Unexpected cv qualification of method parameter: {text}'
+        )
+    elif refs or match['array']:
+        raise ReferenceParamError(
+            'Parameter types which reference unowned data are unsupported in '
+            'interface methods. This includes pointers (int*), C++ '
+            'references (int&), and array parameters (int[]). '
+            'Only const reference parameters are allowed as an exception, to '
+            'allow unneeded copying to be avoided. '
+            f'Got: {param_type}'
         )
 
     return ParsedParam(
         name=match['name'],
-        type=param_type,
+        type=param_type + WHITESPACE.sub('', match['tparam'] or ''),
         optional=match['default'] is not None
     )
+
+
+MODIFIER_PATTERN = re.compile(r'\*|&|const|volatile')
+
+
+class TypeRef(ty.NamedTuple):
+    type: str
+    is_const: bool = False
+    is_volatile: bool = False
+
+    def __str__(self):
+        const = ' const' if self.is_const else ''
+        volatile = ' volatile' if self.is_volatile else ''
+        return f'{self.type}{const}{volatile}'
+    
+
+def parse_type_modifiers(
+        prefix: ty.Optional[str], suffix: ty.Optional[str] = ''
+) -> ty.List[TypeRef]:
+    prefix = prefix or ''
+    suffix = suffix or ''
+    raw_modifiers = prefix + suffix
+
+    def tokenize(text: str) -> ty.List[str]:
+        pos = 0
+        tokens = []
+        while True:
+            match = MODIFIER_PATTERN.search(text, pos)
+            if match is None:
+                break
+            pos = match.end()
+            tokens.append(match.group())
+        return tokens
+
+    def parse_tokens(tokens: ty.List[str]) -> ty.List[TypeRef]:
+        refs = []
+        const = volatile = False
+        for token in reversed(tokens):
+            if token == 'const':
+                const = True
+            elif token == 'volatile':
+                volatile = True
+            else:
+                assert token in '*&'
+                refs.append(TypeRef(token, const, volatile))
+                const = volatile = False
+        refs.append(TypeRef('', const, volatile))
+        return refs
+
+    return parse_tokens(tokenize(raw_modifiers))
+
+
+def resolve_type(
+        name: str, profile: Profile, ns: str = ''
+) -> ty.Union[Serializable, Interface, str]:
+    """
+    Resolves a name appearing in code to a serializable type
+    or interface.
+
+    :param name: Name appearing in code.
+    :param profile: Profile containing known types.
+    :param ns: Namespace containing name.
+    :return: Resolved Serializable, Interface type
+    :raises: InvalidTypeError if type cannot be resolved.
+    """
+    ns_parts = ns.split('::')
+    while True:
+        ns = '::'.join(ns_parts)
+        checked_name = ns + name
+        for collection in (
+                BUILTIN_TYPES, profile.serializable_types, profile.interfaces
+        ):
+            with contextlib.suppress(KeyError):
+                return collection[checked_name]
+        if not ns_parts:
+            # Name has not been resolved.
+            if name in UNSUPPORTED_INTS:
+                raise InvalidTypeError(
+                    f'{name!r} integer types are unsupported as their size may '
+                    'vary across platforms. Use a fixed-width integer type '
+                    'from <cstdint> instead.'
+                )
+            elif name in UNIMPLEMENTED_COLLECTIONS:
+                raise InvalidTypeError(
+                    f'Collection type: {name} is not currently supported.'
+                )
+            else:
+                raise InvalidTypeError(
+                    f'Name: {name!r} does not resolve to any type within '
+                    f'namespace: {ns or "(root)"}'
+                )
+        ns_parts.pop()
+    # TODO: Use with struct, method return type, and parse_param()
 
 
 @functools.singledispatch

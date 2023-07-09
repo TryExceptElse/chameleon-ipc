@@ -176,7 +176,7 @@ class TestParser:
         assert name_field.type_name == 'std::string'
 
     def test_serializable_struct_in_struct(self):
-        header = get_resource('serializable/nested_struct.h')
+        header = get_resource('serializable/struct_in_struct.h')
         profile = Parser().parse([header])
         a = profile.serializable_types['ns::A']
         assert a.type == Serializable.Type.STRUCT
@@ -607,7 +607,6 @@ class TestMethodParse:
         [
             ('virtual int f(int x[3] = nullptr)', ReferenceParamError),
             ('virtual int f(const int* x = nullptr)', ReferenceParamError),
-            ('virtual int f(const int& x = nullptr)', ReferenceParamError),
             ('virtual int f(long c)', InvalidParamTypeError),
             ('virtual int f(std::array<int32_t, 4> x)', InvalidParamTypeError),
             ('virtual long f(int x)', InvalidReturnTypeError),
@@ -649,13 +648,15 @@ class TestParamParse:
             ('std::string s = {}', 'std::string', 's', True),
             ('int foo = default()', 'int', 'foo', True),
             ('int foo = default ()', 'int', 'foo', True),
-            ('[[maybe_unused]] const int x', 'const int', 'x', False),
-            ('LIB_UNUSED const int x', 'const int', 'x', False),
+            ('const int& x', 'int const&', 'x', False),
+            ('[[maybe_unused]] const int& x', 'int const&', 'x', False),
+            ('LIB_UNUSED int const& x', 'int const&', 'x', False),
         ]
     )
     def test_parameter_parsing(self, text, param_type, name, optional):
-        parsed_param = parse_param(text)
-        assert parsed_param == (name, param_type, optional)
+        param = parse_param(text)
+        results = param.name, str(param.type), param.optional
+        assert results == (name, param_type, optional)
 
     @pytest.mark.parametrize(
         'text',
@@ -665,6 +666,7 @@ class TestParamParse:
             'const int* const* x = nullptr',
             'int*** x',
             'const int* foo',
+            'const int foo',  # Unexpected const qualification
             'std::string& conf',
             'std::string &conf',
             'const int arr[]',

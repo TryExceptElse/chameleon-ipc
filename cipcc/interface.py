@@ -48,6 +48,7 @@ class Serializable:
     class Type(enum.Enum):
         ENUM = 'enum'
         STRUCT = 'struct'
+        BUILTIN = 'builtin'
 
     name: str  # Type name, as it appears in C++.
     type: Type
@@ -109,6 +110,14 @@ class Callback:
 class Parameter:
     """
     Stores information about a parameter for a method or callback.
+
+    The parameter type will be a str in the following format:
+    - "int" : Type passed by value.
+    - "int const&" : Type passed by const-ref to avoid unneeded copying.
+    - "std::vector<int>" : Template type with tparam.
+
+    The only supported reference type is the const reference, which is
+    used to pass values without unneeded copying.
     """
     name: str
     type: str
