@@ -3,6 +3,10 @@
 Chameleon IPC is an IPC/RPC system which blends into the surrounding
 code, using annotated C++ interface headers as its IDL.
 
+## WIP notice
+
+_This project is currently a work-in-progress. It is not yet usable._
+
 ## Purpose
 
 Chameleon IPC (or _cipc_) was created to allow seamless IPC communication
