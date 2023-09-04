@@ -862,7 +862,14 @@ def parse_annotations(line: str) -> ty.Optional[Annotation]:
 
 
 LABEL_REGEX = re.compile(r'^\s+(?P<label>\w+):\s')
-FIELD_TYPE_NAME_PATTERN = re.compile(r'^\s*(?P<type_name>[\w:<>]+)\s+')
+FIELD_TYPE_NAME_PATTERN = re.compile(
+    r'(?P<type>(?P<cv>const\s+)?(?P<base_type>[\w:]+)'
+    r'(?:\s*<(?P<tparam>[\w:<>,*&\s]*)>)?'
+    r'(?P<type_suffix>(?:(?:const)?(?:\*|&|\s)+\s*)*))'
+    r'(?<=[\s*&])(?P<name>\w+)\s*'
+    r'(?P<array>(?:\[.*?])*)\s*',
+    flags=re.DOTALL
+)
 FIELD_NAME_PATTERN = re.compile(r'^\s*(?P<name>\w+)')
 
 
@@ -884,26 +891,38 @@ def parse_fields(
 
     # Parse type_name.
     parts = text.split(',')
-    match = FIELD_TYPE_NAME_PATTERN.match(parts[0])
+    match = FIELD_TYPE_NAME_PATTERN.search(parts[0])
     if not match:
         raise InvalidFieldDeclaration(
             f'Invalid or unrecognized field declaration: {repr(text.strip())}. '
             'Ensure a cipc-supported type is being used. '
             'See the Serializable types docs.'
         )
-    type_name = resolve_type(match['type_name'], profile, ns).name
+    try:
+        type_name = resolve_type(match['base_type'].strip(), profile, ns).name
+        tparams = [
+            parse_param(tparam.strip() + ' x', profile, ns).type
+            for tparam in split_params(match['tparam'] or [])
+        ]
+    except InvalidTypeError as type_error:
+        raise InvalidFieldDeclaration(str(type_error)) from type_error
+    type_name += '<' + ','.join(tparams) + '>' if tparams else ''
 
-    # Parse fields.
-    parts[0] = parts[0][len(match.group()):]
-    fields = []
-    for part in parts:
-        match = FIELD_NAME_PATTERN.match(part)
-        if not match:
+    fields = [Field(match['name'], type_name)]
+    if len(parts) > 1:
+        names = [FIELD_NAME_PATTERN.match(part)['name'] for part in parts[1:]]
+        if any(
+                complex_char in text_fragment for complex_char, text_fragment in
+                itertools.product('*&[]', [type_name] + names)
+        ):
             raise InvalidFieldDeclaration(
-                f'Unrecognized field declaration: {repr(text.strip())}.'
+                'Complex field declarations should be on their own line. '
+                'Avoid combining declarations of pointer, reference, or '
+                f'array variables. Got declaration: {text}'
             )
-        name = match['name']
-        fields.append(Field(name, type_name))
+        for name in names:
+            fields.append(Field(name, type_name))
+
     return fields
 
 
@@ -922,7 +941,6 @@ METHOD_SIGNATURE_PATTERN = re.compile(
 COLLAPSED_PARAM_PATTERNS = [
     (re.compile(r'\{.*}', flags=re.DOTALL), '{}'),
     (re.compile(r'\(.*\)', flags=re.DOTALL), '()'),
-    (re.compile(r'<.*>', flags=re.DOTALL), '<>'),
 ]
 PARAM_PATTERN = re.compile(
     r'(?P<type>(?P<cv>const\s+)?(?P<base_type>[\w:]+)'
