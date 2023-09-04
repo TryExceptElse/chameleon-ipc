@@ -673,6 +673,7 @@ class TestParamParse:
             'const int arr []',
             'const int arr[] = {}',
             'const std::vector<std::size_t>* result',
+            'std::vector<int*> pointers',
         ]
     )
     def test_reference_param_detection(self, text):
@@ -709,6 +710,24 @@ class TestParamParse:
     def test_unsupported_parameter_types(self, text):
         """
         Tests that parameters with unsupported types are detected.
+        """
+        with pytest.raises(InvalidParamTypeError):
+            parse_param(text)
+
+    @pytest.mark.parametrize(
+        'text',
+        [
+            'invalid x',
+            'std::invalid x',
+            'std::vector<invalid> x',
+            'std::vector<std::vector<invalid>> x',
+            'std::map<invalid, int> x',
+            'std::map<int, invalid> x',
+        ]
+    )
+    def test_invalid_types(self, text):
+        """
+        Tests that parameters with invalid type names are detected.
         """
         with pytest.raises(InvalidParamTypeError):
             parse_param(text)
