@@ -522,7 +522,8 @@ std::size_t serialized_size(const std::optional<T>& x) {
 }
 
 template<typename T>
-std::size_t serialize(const std::optional<T>& x, void* buf, std::size_t buf_size) {
+std::size_t serialize(
+    const std::optional<T>& x, void* buf, std::size_t buf_size) {
   auto* cursor = reinterpret_cast<uint8_t*>(buf);
   auto size = serialize(
       static_cast<bool>(x.has_value()), cursor, buf_size);
