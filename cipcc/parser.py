@@ -480,7 +480,7 @@ class NamespaceObserver(CodeObserver):
 
         elif (
                 event == CodeEvent.BRACKET_END and
-                state.brace_stack[-1] == '}' and
+                state.brace_stack[-1] == '{' and
                 self.namespaces and
                 state.brace_stack == self.namespaces[-1].brace_stack
         ):
