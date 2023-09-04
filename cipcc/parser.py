@@ -926,14 +926,13 @@ COLLAPSED_PARAM_PATTERNS = [
 ]
 PARAM_PATTERN = re.compile(
     r'(?P<type>(?P<cv>const\s+)?(?P<base_type>[\w:]+)'
-    r'(?P<tparam>\s*<[\w:<>,\s]*>)?'
+    r'(?:\s*<(?P<tparam>[\w:<>,*&\s]*)>)?'
     r'(?P<type_suffix>(?:(?:const)?(?:\*|&|\s)+\s*)*))'
     r'(?<=[\s*&])(?P<name>\w+)\s*'
     r'(?P<array>(?:\[.*?])*)\s*'
     r'(?:=\s*(?P<default>[\w:()\[\]{}"\s]+?))?\s*$',
     flags=re.DOTALL
 )
-WHITESPACE = re.compile(r'\s+')
 
 
 class ParsedParam(ty.NamedTuple):
@@ -1099,6 +1098,10 @@ def parse_param(
     *refs, cv = parse_type_modifiers(match['cv'], match['type_suffix'])
     try:
         param_type = resolve_type(match['base_type'].strip(), profile, ns).name
+        tparams = [
+            parse_param(tparam.strip() + ' x', profile, ns).type
+            for tparam in split_params(match['tparam'] or [])
+        ]
     except InvalidTypeError as type_error:
         raise InvalidParamTypeError(str(type_error)) from type_error
 
@@ -1111,7 +1114,7 @@ def parse_param(
         )
     elif refs or match['array']:
         raise ReferenceParamError(
-            'Parameter types which reference unowned data are unsupported in '
+            'Types which reference unowned data are unsupported in '
             'interface methods. This includes pointers (int*), C++ '
             'references (int&), and array parameters (int[]). '
             'Only const reference parameters are allowed as an exception, to '
@@ -1121,7 +1124,7 @@ def parse_param(
 
     return ParsedParam(
         name=match['name'],
-        type=param_type + WHITESPACE.sub('', match['tparam'] or ''),
+        type=param_type + ('<' + ','.join(tparams) + '>' if tparams else ''),
         optional=match['default'] is not None
     )
 
