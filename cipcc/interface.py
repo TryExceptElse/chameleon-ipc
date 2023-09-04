@@ -48,6 +48,7 @@ class Serializable:
     class Type(enum.Enum):
         ENUM = 'enum'
         STRUCT = 'struct'
+        BUILTIN = 'builtin'
 
     name: str  # Type name, as it appears in C++.
     type: Type
@@ -78,8 +79,9 @@ class Interface:
     Overloads are considered separate methods for CIPC's purposes.
     """
     name: str  # Type name, as it appears in C++.
-    methods: ty.Dict[str, 'Method']
-    callbacks: ty.Dict[str, 'Callback']
+    methods: ty.Dict[str, 'Method'] = dataclasses.field(default_factory=dict)
+    callbacks: ty.Dict[str, 'Callback'] = \
+        dataclasses.field(default_factory=dict)
 
 
 @dataclass
@@ -88,6 +90,8 @@ class Method:
     Stores information about a specific interface method.
     """
     name: str  # method name, as it appears in C++.
+    return_type: str
+    parameters: ty.List['Parameter']
 
 
 @dataclass
@@ -98,3 +102,22 @@ class Callback:
     name: str
     register_method: str
     remove_method: str
+    return_type: str
+    parameters: ty.List['Parameter']
+
+
+@dataclass
+class Parameter:
+    """
+    Stores information about a parameter for a method or callback.
+
+    The parameter type will be a str in the following format:
+    - "int" : Type passed by value.
+    - "int const&" : Type passed by const-ref to avoid unneeded copying.
+    - "std::vector<int>" : Template type with tparam.
+
+    The only supported reference type is the const reference, which is
+    used to pass values without unneeded copying.
+    """
+    name: str
+    type: str
