@@ -1213,6 +1213,9 @@ def resolve_type(
     :raises: InvalidTypeError if type cannot be resolved.
     """
     ns_parts = ns.split('::')
+    if name.startswith('::'):
+        ns_parts = []
+        name = name[len('::'):]
     while True:
         checked_name = '::'.join(ns_parts + [name])
         for collection in (
