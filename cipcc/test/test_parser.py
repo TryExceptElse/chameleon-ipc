@@ -348,16 +348,16 @@ class TestParser:
         assert interface.name == 'ns1::ns2::Interface'
         init = interface.methods['Init(ns1::ns2::Interface::Conf)']
         assert init == Method(
-            name='Init(ns1::Conf)',
+            name='Init(ns1::ns2::Interface::Conf)',
             return_type='int',
             parameters=[
-                Parameter(name='conf', type='ns1::Conf')
+                Parameter(name='conf', type='ns1::ns2::Interface::Conf')
             ],
         )
         accessor = interface.methods['conf()const']
         assert accessor == Method(
             name='conf()const',
-            return_type='ns1::Conf',
+            return_type='ns1::ns2::Interface::Conf',
             parameters=[],
         )
 
