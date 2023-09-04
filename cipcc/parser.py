@@ -29,7 +29,6 @@ import functools
 import itertools
 from pathlib import Path
 import re
-import string
 import typing as ty
 
 from .interface import (
