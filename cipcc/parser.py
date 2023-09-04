@@ -795,8 +795,10 @@ class MethodCodeObserver(CodeObserver):
         assert signature_statement.startswith(self.ignored_method_prefix)
         self.declaration += signature_statement[self.ignored_len:]
         self.declaration = self.declaration.rstrip('{').strip()
+        profile = self.interface_observer.profile
+        ns = self.interface_observer.name
         try:
-            signatures = parse_methods(self.declaration)
+            signatures = parse_methods(self.declaration, profile, ns)
             interface = self.interface_observer.interface
             for signature in signatures:
                 interface.methods[signature.name] = signature
@@ -1212,8 +1214,7 @@ def resolve_type(
     """
     ns_parts = ns.split('::')
     while True:
-        ns = '::'.join(ns_parts)
-        checked_name = ns + name
+        checked_name = '::'.join(ns_parts + [name])
         for collection in (
                 BUILTIN_TYPES, profile.serializable_types, profile.interfaces
         ):
