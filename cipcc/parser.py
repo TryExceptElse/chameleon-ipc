@@ -135,21 +135,27 @@ _BUILTIN_TYPE_NAMES = [
     'std::unordered_map',
 ]
 
-# Add int(N)_t and variations to builtin types.
-BUILTIN_TYPES = {}
-for bit_size, sign_prefix, namespace in itertools.product(
-        ('8', '16', '32', '64'),
-        ('u', ''),
-        ('std::', ''),
-):
-    BUILTIN_TYPES[f'{namespace}{sign_prefix}int{bit_size}_t'] = Serializable(
-        f'std::{sign_prefix}int{bit_size}_t',
-        type=Serializable.Type.BUILTIN,
-    )
-for builtin_name in _BUILTIN_TYPE_NAMES:
-    BUILTIN_TYPES[builtin_name] = Serializable(
-        builtin_name, type=Serializable.Type.BUILTIN
-    )
+
+def _get_builtin_types():
+    # Add int(N)_t and variations to builtin types.
+    types = {}
+    for bit_size, sign_prefix, namespace in itertools.product(
+            ('8', '16', '32', '64'),
+            ('u', ''),
+            ('std::', ''),
+    ):
+        types[f'{namespace}{sign_prefix}int{bit_size}_t'] = Serializable(
+            f'std::{sign_prefix}int{bit_size}_t',
+            type=Serializable.Type.BUILTIN,
+        )
+    for builtin_name in _BUILTIN_TYPE_NAMES:
+        types[builtin_name] = Serializable(
+            builtin_name, type=Serializable.Type.BUILTIN
+        )
+    return types
+
+
+BUILTIN_TYPES = _get_builtin_types()
 
 UNSUPPORTED_INTS = {
     'char',
