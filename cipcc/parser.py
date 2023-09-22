@@ -135,21 +135,27 @@ _BUILTIN_TYPE_NAMES = [
     'std::unordered_map',
 ]
 
-# Add int(N)_t and variations to builtin types.
-BUILTIN_TYPES = {}
-for bit_size, sign_prefix, namespace in itertools.product(
-        ('8', '16', '32', '64'),
-        ('u', ''),
-        ('std::', ''),
-):
-    BUILTIN_TYPES[f'{namespace}{sign_prefix}int{bit_size}_t'] = Serializable(
-        f'std::{sign_prefix}int{bit_size}_t',
-        type=Serializable.Type.BUILTIN,
-    )
-for builtin_name in _BUILTIN_TYPE_NAMES:
-    BUILTIN_TYPES[builtin_name] = Serializable(
-        builtin_name, type=Serializable.Type.BUILTIN
-    )
+
+def _get_builtin_types():
+    # Add int(N)_t and variations to builtin types.
+    types = {}
+    for bit_size, sign_prefix, namespace in itertools.product(
+            ('8', '16', '32', '64'),
+            ('u', ''),
+            ('std::', ''),
+    ):
+        types[f'{namespace}{sign_prefix}int{bit_size}_t'] = Serializable(
+            f'std::{sign_prefix}int{bit_size}_t',
+            type=Serializable.Type.BUILTIN,
+        )
+    for builtin_name in _BUILTIN_TYPE_NAMES:
+        types[builtin_name] = Serializable(
+            builtin_name, type=Serializable.Type.BUILTIN
+        )
+    return types
+
+
+BUILTIN_TYPES = _get_builtin_types()
 
 UNSUPPORTED_INTS = {
     'char',
@@ -396,51 +402,42 @@ def code_walk(
     state.notify(CodeEvent.END_OF_FILE)
 
 
-class Parser:
+def parse(headers: ty.Iterable[Path]) -> Profile:
     """
-    Class handling parsing of interface descriptions from
-    annotated headers.
+    Parses set of interface files, and produces an
+    interface Profile.
+
+    :param headers: Interface headers to parse.
+    :return: Profile containing parsed interfaces.
     """
+    profile = Profile()
+    namespace_observer = NamespaceObserver()
 
-    def __init__(self):
-        pass
+    def watch_for_root_annotations(_, state: 'CodeState') -> None:
+        annotation = parse_annotations(state.line)
+        if not annotation:
+            return
+        kwargs = annotation.kwargs
+        namespace = namespace_observer.namespace
+        if annotation.key == 'Serializable':
+            state.add_observer(SerializableCodeObserver(
+                profile, namespace, **kwargs
+            ))
+        elif annotation.key == 'Interface':
+            state.add_observer(InterfaceCodeObserver(profile, namespace))
 
-    def parse(self, headers: ty.Iterable[Path]) -> Profile:
-        """
-        Parses set of interface files, and produces an
-        interface Profile.
-
-        :param headers: Interface headers to parse.
-        :return: Profile containing parsed interfaces.
-        """
-        profile = Profile()
-        namespace_observer = NamespaceObserver()
-
-        def watch_for_root_annotations(_, state: 'CodeState') -> None:
-            annotation = parse_annotations(state.line)
-            if not annotation:
-                return
-            kwargs = annotation.kwargs
-            namespace = namespace_observer.namespace
-            if annotation.key == 'Serializable':
-                state.add_observer(SerializableCodeObserver(
-                    profile, namespace, **kwargs
-                ))
-            elif annotation.key == 'Interface':
-                state.add_observer(InterfaceCodeObserver(profile, namespace))
-
-        for header in headers:
-            if header.is_dir():
-                raise ValueError(
-                    f'Passed path: {header} is a directory, not a header.'
-                )
-            text = header.read_text()
-            root_observer = CodeObserver(
-                watch_for_root_annotations, events=CodeEvent.LINE_END
+    for header in headers:
+        if header.is_dir():
+            raise ValueError(
+                f'Passed path: {header} is a directory, not a header.'
             )
-            code_walk(text, header.name, [root_observer, namespace_observer])
+        text = header.read_text()
+        root_observer = CodeObserver(
+            watch_for_root_annotations, events=CodeEvent.LINE_END
+        )
+        code_walk(text, header.name, [root_observer, namespace_observer])
 
-        return profile
+    return profile
 
 
 #######################################################################
