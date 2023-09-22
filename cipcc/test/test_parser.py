@@ -24,7 +24,6 @@ Test module containing Parser tests.
 import pytest
 
 from ..parser import (
-    Parser,
     Field,
     Annotation,
     InvalidAnnotation,
@@ -33,6 +32,7 @@ from ..parser import (
     ReferenceParamError,
     InvalidParamTypeError,
     InvalidReturnTypeError,
+    parse,
     parse_annotations,
     parse_fields,
     parse_methods,
@@ -50,19 +50,19 @@ class TestParser:
 
     def test_simple_enum(self):
         header = get_resource('serializable/enum.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         mode = profile.serializable_types['Mode']
         assert mode.type == Serializable.Type.ENUM
 
     def test_enum_class(self):
         header = get_resource('serializable/enum_class.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         mode = profile.serializable_types['Mode']
         assert mode.type == Serializable.Type.ENUM
 
     def test_simple_struct(self):
         header = get_resource('serializable/struct.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -75,7 +75,7 @@ class TestParser:
 
     def test_simple_class(self):
         header = get_resource('serializable/class.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -88,7 +88,7 @@ class TestParser:
 
     def test_struct_aggregate(self):
         header = get_resource('serializable/struct_aggregate.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -99,7 +99,7 @@ class TestParser:
 
     def test_struct_on_single_line(self):
         header = get_resource('serializable/struct_inline.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -112,7 +112,7 @@ class TestParser:
 
     def test_struct_with_multiline_declaration(self):
         header = get_resource('serializable/struct_multiline_decl.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -125,7 +125,7 @@ class TestParser:
 
     def test_struct_with_defaults(self):
         header = get_resource('serializable/struct_with_defaults.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -138,7 +138,7 @@ class TestParser:
 
     def test_class_with_methods(self):
         header = get_resource('serializable/class_with_methods.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -151,7 +151,7 @@ class TestParser:
 
     def test_namespaced_serializable(self):
         header = get_resource('serializable/namespaced_struct.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['bar::baz::Foo']
         assert isinstance(foo, SerializableStruct)
         assert foo.type == Serializable.Type.STRUCT
@@ -164,7 +164,7 @@ class TestParser:
 
     def test_nested_serializable(self):
         header = get_resource('serializable/nested_struct.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         foo = profile.serializable_types['bar::Interface::Foo']
         assert foo.type == Serializable.Type.STRUCT
         assert isinstance(foo, SerializableStruct)
@@ -177,7 +177,7 @@ class TestParser:
 
     def test_serializable_struct_in_struct(self):
         header = get_resource('serializable/struct_in_struct.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         a = profile.serializable_types['ns::A']
         assert a.type == Serializable.Type.STRUCT
         assert isinstance(a, SerializableStruct)
@@ -196,7 +196,7 @@ class TestParser:
 
     def test_accessor_method(self):
         header = get_resource('method/accessor.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         accessor = interface.methods['access()const']
@@ -208,7 +208,7 @@ class TestParser:
 
     def test_binary_method(self):
         header = get_resource('method/binary.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         accessor = interface.methods['DoTheThing(std::string,int)const']
@@ -223,7 +223,7 @@ class TestParser:
 
     def test_consumer_method(self):
         header = get_resource('method/consumer.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         accessor = interface.methods['DoTheThing(std::int32_t)const']
@@ -235,7 +235,7 @@ class TestParser:
 
     def test_method_with_default_impl(self):
         header = get_resource('method/default_impl.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         accessor = interface.methods['Encode(int)const']
@@ -247,7 +247,7 @@ class TestParser:
 
     def test_multiline_method(self):
         header = get_resource('method/multiline.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         accessor = interface.methods['Encode(int,int)const']
@@ -262,7 +262,7 @@ class TestParser:
 
     def test_optional_param_method(self):
         header = get_resource('method/optional_param.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         accessor_a = interface.methods['DoTheThing(int)']
@@ -283,7 +283,7 @@ class TestParser:
 
     def test_overloaded_method(self):
         header = get_resource('method/overloaded.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         assert interface.methods['Encode(std::string)const'] == Method(
@@ -299,7 +299,7 @@ class TestParser:
 
     def test_unary_method(self):
         header = get_resource('method/unary.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['Interface']
         assert interface.name == 'Interface'
         accessor = interface.methods['Encode(int)const']
@@ -311,7 +311,7 @@ class TestParser:
 
     def test_namespaced_interface(self):
         header = get_resource('method/namespace.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['ns1::ns2::Interface']
         assert interface.name == 'ns1::ns2::Interface'
         accessor = interface.methods['DoTheThing(int)']
@@ -323,7 +323,7 @@ class TestParser:
 
     def test_namespaced_serializable_type(self):
         header = get_resource('method/namespaced_type.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['ns1::ns2::Interface']
         assert interface.name == 'ns1::ns2::Interface'
         init = interface.methods['Init(ns1::Conf)']
@@ -343,7 +343,7 @@ class TestParser:
 
     def test_nested_serializable_type(self):
         header = get_resource('method/nested_type.h')
-        profile = Parser().parse([header])
+        profile = parse([header])
         interface = profile.interfaces['ns1::ns2::Interface']
         assert interface.name == 'ns1::ns2::Interface'
         init = interface.methods['Init(ns1::ns2::Interface::Conf)']
