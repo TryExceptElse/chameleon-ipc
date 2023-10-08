@@ -22,7 +22,6 @@
 Module containing interface parser.
 """
 import ast
-import collections
 import contextlib
 from dataclasses import dataclass
 import enum
@@ -871,7 +870,7 @@ def explore_includes(
     """
     # Collection of include lists by the file which includes them.
     # All paths are normalized to their absolute path.
-    parsed_files: ty.Dict[Path, ty.Set[Path]] = collections.defaultdict(set)
+    parsed_files: ty.Dict[Path, ty.Set[Path]] = {}
     unparsed_files: ty.List[Path] = [header.resolve() for header in headers]
 
     while unparsed_files:
