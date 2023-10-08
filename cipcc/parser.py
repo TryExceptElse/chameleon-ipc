@@ -118,6 +118,18 @@ class InvalidAnnotation(ValueError):
     """
 
 
+class IncludeResolutionError(KeyError):
+    """
+    Exception raised when an include cannot be resolved.
+    """
+
+
+class CircularIncludeError(RuntimeError):
+    """
+    Exception produced when headers appear to include each other.
+    """
+
+
 #######################################################################
 # Basic parsing types.
 
@@ -402,12 +414,15 @@ def code_walk(
     state.notify(CodeEvent.END_OF_FILE)
 
 
-def parse(headers: ty.Iterable[Path]) -> Profile:
+def parse(
+        headers: ty.Iterable[Path], include_dirs: ty.Iterable[Path] = ()
+) -> Profile:
     """
     Parses set of interface files, and produces an
     interface Profile.
 
     :param headers: Interface headers to parse.
+    :param include_dirs: Directories in which to search for includes.
     :return: Profile containing parsed interfaces.
     """
     profile = Profile()
@@ -426,7 +441,7 @@ def parse(headers: ty.Iterable[Path]) -> Profile:
         elif annotation.key == 'Interface':
             state.add_observer(InterfaceCodeObserver(profile, namespace))
 
-    for header in headers:
+    for header in explore_includes(headers, include_dirs):
         if header.is_dir():
             raise ValueError(
                 f'Passed path: {header} is a directory, not a header.'
@@ -833,6 +848,133 @@ KEY_VALUE_PATTERN = re.compile(
 class Annotation(ty.NamedTuple):
     key: str
     kwargs: ty.Dict[str, ty.Any]
+
+
+def explore_includes(
+        headers: ty.Iterable[Path], include_dirs: ty.Iterable[Path]
+) -> ty.List[Path]:
+    """
+    Explores the passed header files for their recursive includes.
+
+    #includes are followed until all headers which are included are
+    discovered. All headers (including those passed) are then sorted
+    based on their dependency order, with headers that include others
+    appearing after the files they include.
+
+    Headers which do not occur in one of the passed include directories
+    (excepting the explicitly passed headers) will not be parsed.
+
+    :param headers: Header files to read for #includes.
+    :param include_dirs: Directories in which to look for includes.
+    :return: Header paths in the order in which they should be parsed.
+    """
+    # Collection of include lists by the file which includes them.
+    # All paths are normalized to their absolute path.
+    parsed_files: ty.Dict[Path, ty.Set[Path]] = {}
+    unparsed_files: ty.List[Path] = [header.resolve() for header in headers]
+
+    while unparsed_files:
+        header = unparsed_files.pop()
+        if header in parsed_files:
+            continue
+
+        # Determine header includes.
+        raw_includes = read_header_includes(header)
+        includes = set()
+        for include in raw_includes:
+            with contextlib.suppress(KeyError):
+                includes.add(resolve_include(include, include_dirs))
+        parsed_files[header] = includes
+
+        # Queue dependencies for parsing.
+        for include in includes:
+            if include not in parsed_files:
+                unparsed_files.append(include)
+
+    return find_parse_order(parsed_files)
+
+
+INCLUDE_PATTERN = re.compile(rb'^ *# *include *(?P<include>"[^"]+"|<[^>]+>)')
+
+
+def read_header_includes(header: Path) -> ty.List[str]:
+    """
+    Reads all includes which occur in a file.
+
+    :param header: Path to file to parse.
+    :return: List of included strings, including surrounding brackets
+    or quote chars. Ex: ['<string>', '"foo.h"', '"baz.h"'].
+    """
+    includes = []
+    with header.open('rb') as file:
+        for line in file:
+            match = INCLUDE_PATTERN.match(line)
+            if match:
+                includes.append(match['include'].decode('ascii'))
+    return includes
+
+
+def resolve_include(include: str, include_dirs: ty.Iterable[Path]) -> Path:
+    """
+    Resolves an included file name to a
+    :param include: Raw include str (Ex: '<foo>' or '"foo.h"').
+    :param include_dirs: Include dirs in which to look for a
+    matching header.
+    :return: Absolute, resolved path.
+    :raises: IncludeResolutionError if file cannot be found.
+    """
+    # Strip quotes or brackets.
+    if include.startswith('<'):
+        assert include.endswith('>')
+    elif include.startswith('"'):
+        assert include.endswith('"')
+    else:
+        raise AssertionError(f'Bad include str: {include!r}')
+    include = include[1:-1]
+
+    # Look for file.
+    for include_dir in include_dirs:
+        checked_path = include_dir / include
+        if checked_path.exists():
+            return checked_path
+    raise IncludeResolutionError(f'Cannot resolve {include!r}')
+
+
+def find_parse_order(include_map: ty.Dict[Path, ty.Set[Path]]) -> ty.List[Path]:
+    """
+    Finds order in which to parse headers.
+
+    Given a map of header files to their included direct dependencies,
+    this function produces the order in which the headers should be
+    parsed so that each header is parsed after its included files.
+
+    :param include_map: Dict of headers to their direct dependencies.
+    :return: List of headers in the order they should be parsed.
+    """
+    unsorted_headers = set(include_map.keys())
+
+    # Check all includes match a known header.
+    for header, includes in include_map.items():
+        unknown_includes = includes - unsorted_headers
+        assert not unknown_includes
+
+    sorted_headers = set()
+    ordering = []
+    while unsorted_headers:
+        made_progress = False
+        for header in unsorted_headers:
+            dependencies = include_map[header]
+            if dependencies <= sorted_headers:
+                ordering.append(header)
+                sorted_headers.add(header)
+                made_progress = True
+        if not made_progress:
+            raise CircularIncludeError(
+                f'The following headers appear to form one or more circular '
+                f'include chains: {unsorted_headers}'
+            )
+        unsorted_headers -= sorted_headers
+    return ordering
 
 
 def parse_annotations(line: str) -> ty.Optional[Annotation]:

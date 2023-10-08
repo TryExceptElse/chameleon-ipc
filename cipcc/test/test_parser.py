@@ -32,6 +32,8 @@ from ..parser import (
     ReferenceParamError,
     InvalidParamTypeError,
     InvalidReturnTypeError,
+    CircularIncludeError,
+    explore_includes,
     parse,
     parse_annotations,
     parse_fields,
@@ -360,6 +362,33 @@ class TestParser:
             return_type='ns1::ns2::Interface::Conf',
             parameters=[],
         )
+
+
+class TestParsingOrder:
+    def test_simple_include_chain(self):
+        header_dir = get_resource('include/simple')
+        first_header = header_dir / 'a.h'
+        parse_order = explore_includes([first_header], [header_dir])
+        expected = [header_dir / 'c.h', header_dir / 'b.h', header_dir / 'a.h']
+        assert parse_order == expected
+
+    def test_diamond_include_pattern(self):
+        headers = get_resource('include/diamond')
+        a = headers / 'a.h'
+        b = headers / 'b.h'
+        c = headers / 'c.h'
+        d = headers / 'd.h'
+        parse_order = explore_includes([a], [headers])
+        assert len(parse_order) == 4
+        assert parse_order[0] == d
+        assert parse_order[-1] == a
+        assert parse_order[1] in {b, c}
+        assert parse_order[2] in {b, c}
+
+    def test_circular_includes(self):
+        headers = get_resource('include/circle')
+        with pytest.raises(CircularIncludeError):
+            explore_includes([headers / 'a.h'], [headers])
 
 
 class TestAnnotations:
