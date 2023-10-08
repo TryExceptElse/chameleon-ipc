@@ -978,27 +978,6 @@ def find_parse_order(include_map: ty.Dict[Path, ty.Set[Path]]) -> ty.List[Path]:
     return ordering
 
 
-def lookup_recursive_includes(
-        path: Path, dependencies: ty.Dict[Path, ty.Set[Path]]
-) -> ty.Set[Path]:
-    """
-    Finds recursive dependencies given a header and direct dependencies.
-    :param path: Path to header to resolve dependencies for.
-    :param dependencies: Dict of direct file dependencies, as parsed
-    by explore_includes().
-    :return: Set of recursive dependencies for the passed file.
-    """
-    recursive_includes = set()
-    to_check = {path}
-    while to_check:
-        checked_header = to_check.pop()
-        direct_includes = dependencies[checked_header]
-        unchecked_direct_includes = direct_includes - recursive_includes
-        to_check.update(unchecked_direct_includes)
-        recursive_includes.update(direct_includes)
-    return recursive_includes
-
-
 def parse_annotations(line: str) -> ty.Optional[Annotation]:
     """
     Parses IPC annotations on a line into usable values.
